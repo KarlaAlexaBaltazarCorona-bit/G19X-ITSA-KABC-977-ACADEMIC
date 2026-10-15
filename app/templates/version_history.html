@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{#
+  version_history.html — Pantalla 8: Historial de versiones
+  ──────────────────────────────────────────────────────────
+  Roles: APROBADOR_JURIDICO, ADMINISTRADOR_PLATAFORMA
+  Datos: GET /api/v1/documents/detalle/{doc_id}/versions
+#}
+{% block content %}
+<div class="flex items-center gap-2" style="margin-bottom:1rem;font-size:.83rem;color:var(--ink-soft)">
+  <a href="/api/v1/app/solicitudes/{{ solicitud_id }}" class="flex items-center gap-1 cell-link">
+    <i data-lucide="arrow-left" class="icon" style="width:14px;height:14px"></i> Volver al detalle
+  </a>
+</div>
+<div class="page-head"><div><h1 id="ver-titulo">Historial de versiones</h1><p>Todas las versiones guardadas del documento adjunto.</p></div></div>
+
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Versión</th><th>Nombre del archivo</th><th>Formato</th><th>Tamaño</th><th>Guardado por</th><th>Fecha</th><th></th></tr></thead>
+    <tbody id="tabla-versiones"><tr><td colspan="7"><div class="empty-state">Cargando versiones...</div></td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SOL_ID = "{{ solicitud_id }}";
+document.addEventListener('DOMContentLoaded', async () => {
+  /* Primero obtener los documentos de esta solicitud */
+  try {
+    const s = await apiGet(`/api/v1/solicitudes/${SOL_ID}`);
+    document.getElementById('ver-titulo').textContent = `Versiones · ${s.titulo}`;
+    const docs = await apiGet(`/api/v1/documents/${SOL_ID}`);
+    if (!docs || docs.length === 0) {
+      document.getElementById('tabla-versiones').innerHTML = '<tr><td colspan="7"><div class="empty-state">No hay documentos adjuntos.</div></td></tr>';
+      return;
+    }
+    /* Obtener versiones del primer documento */
+    const versions = await apiGet(`/api/v1/documents/detalle/${docs[0].id}/versions`);
+    const body = document.getElementById('tabla-versiones');
+    if (!versions || versions.length === 0) {
+      body.innerHTML = '<tr><td colspan="7"><div class="empty-state">Solo hay una versión registrada.</div></td></tr>';
+      return;
+    }
+    body.innerHTML = versions.map(v => `<tr>
+      <td><strong>v${v.numero_version}</strong></td>
+      <td>${v.nombre_archivo}</td>
+      <td class="cell-muted">${v.formato_archivo||'—'}</td>
+      <td class="cell-muted">${v.tamano_archivo ? (v.tamano_archivo/1024).toFixed(1)+' KB' : '—'}</td>
+      <td class="cell-muted">${v.actualizado_por?.slice(0,8)}...</td>
+      <td class="cell-muted">${(v.creado_at||'').slice(0,10)}</td>
+      <td><a href="${v.ubicacion}" target="_blank" class="cell-link">Descargar</a></td>
+    </tr>`).join('');
+  } catch(e) {
+    document.getElementById('tabla-versiones').innerHTML = '<tr><td colspan="7"><div class="empty-state">Error al cargar versiones.</div></td></tr>';
+  }
+});
+</script>
+{% endblock %}

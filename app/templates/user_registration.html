@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+{#
+  user_registration.html — Pantalla 13: Registro y gestión de usuarios y funcionarios
+  ─────────────────────────────────────────────────────────────────────────────────────
+  Rol: ADMINISTRADOR_PLATAFORMA únicamente
+  Permite:
+    - Ver todos los usuarios registrados en el sistema
+    - Pre-registrar funcionarios antes de su primer login con Entra ID
+    - Editar datos y roles de los usuarios directamente desde la interfaz
+    - Activar / desactivar cuentas en tiempo real
+    - Acceso directo al panel de base de datos SQLAdmin (/admin/usuario/list)
+#}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Usuarios y funcionarios</h1>
+    <p>Registra, edita roles y administra las cuentas de los colaboradores de la plataforma.</p>
+  </div>
+  <!-- Acceso directo al panel SQLAdmin de la tabla usuarios -->
+  <a href="/admin/usuario/list" target="_blank" class="btn btn-outline">
+    <i data-lucide="database" class="icon" style="width:16px;height:16px"></i>
+    Gestión en BD (SQLAdmin)
+  </a>
+</div>
+
+<!-- Nota informativa sobre la arquitectura de autenticación -->
+<div class="flash flash-success" style="margin-bottom:1.4rem;">
+  <i data-lucide="info" class="icon"></i>
+  <span>
+    <strong>Autenticación corporativa con Microsoft Entra ID.</strong>
+    Puedes pre-registrar a los funcionarios con su correo institucional y asignarles su rol
+    (Revisor, Aprobador, Administrador o Auditor). Al iniciar sesión con Microsoft, la plataforma los reconocerá automáticamente.
+  </span>
+</div>
+
+<div class="grid-2" style="align-items:start;">
+
+  <!-- Tabla de usuarios existentes -->
+  <div class="table-wrap">
+    <div class="card-header">
+      <h3>Usuarios registrados (<span id="conteo-usuarios">0</span>)</h3>
+      <!-- Buscador inline -->
+      <input class="input" type="text" id="buscar-usuario"
+             placeholder="Buscar por nombre o correo…"
+             style="width:200px;font-size:.82rem;padding:.4rem .7rem;"
+             oninput="filtrarUsuarios()">
+    </div>
+    <table id="tabla-usuarios">
+      <thead>
+        <tr><th>Funcionario</th><th>Rol Asignado</th><th>Estado</th><th>Acciones</th></tr>
+      </thead>
+      <tbody id="tabla-body">
+        <tr><td colspan="4"><div class="empty-state">Cargando usuarios...</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Formulario de registro de nuevo usuario -->
+  <form class="card card-pad" id="form-usuario">
+    <div class="section-title">Pre-registrar funcionario</div>
+    <p class="muted" style="margin-top:0;font-size:.84rem;line-height:1.55;">
+      Registra al funcionario con su correo corporativo y rol. Al iniciar sesión por primera vez, el sistema lo identificará.
+    </p>
+
+    <div class="field">
+      <label for="nombre">Nombre *</label>
+      <input class="input" type="text" id="nombre" name="nombre" required
+             placeholder="Nombre del funcionario">
+    </div>
+    <div class="field">
+      <label for="apellido">Apellido</label>
+      <input class="input" type="text" id="apellido" name="apellido"
+             placeholder="Apellido (opcional)">
+    </div>
+    <div class="field">
+      <label for="correo">Correo corporativo *</label>
+      <div class="input-icon-wrap">
+        <i data-lucide="mail" class="icon"></i>
+        <input class="input" type="email" id="correo" name="correo" required
+               placeholder="nombre@plurione.com">
+      </div>
+    </div>
+    <div class="field">
+      <label for="role">Rol asignado *</label>
+      <select class="input" id="role" name="role" required>
+        <option value="" disabled selected>Selecciona un rol</option>
+        <option value="REVISOR_JURIDICO">Revisor Jurídico / Abogado Analista</option>
+        <option value="APROBADOR_JURIDICO">Aprobador Jurídico / Firma Autorizada</option>
+        <option value="ADMINISTRADOR_PLATAFORMA">Administrador de la Plataforma</option>
+        <option value="AUDITOR">Auditor / Oficial de Cumplimiento</option>
+      </select>
+      <div class="help-text" id="desc-rol" style="font-size:0.78rem;color:var(--ink-soft);margin-top:0.3rem;"></div>
+    </div>
+
+    <div id="alerta-user" class="flash" style="display:none;margin-bottom:1rem;"></div>
+
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary" id="btn-registrar">
+        <i data-lucide="user-plus" class="icon" style="width:16px;height:16px"></i> Registrar
+      </button>
+      <button type="reset" class="btn btn-outline">Limpiar</button>
+    </div>
+  </form>
+
+</div>
+
+<!-- Modal para Editar Usuario -->
+<div id="modal-editar" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(2px);">
+  <div class="card card-pad" style="width:100%;max-width:480px;background:#fff;border-radius:12px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
+    <div class="flex items-center justify-between" style="border-bottom:1px solid var(--line);padding-bottom:0.75rem;margin-bottom:1rem;">
+      <h3 style="margin:0;font-size:1.1rem;display:flex;items-center;gap:0.5rem;">
+        <i data-lucide="user-cog" class="icon" style="width:18px;height:18px;color:var(--navy-600)"></i>
+        Editar Colaborador
+      </h3>
+      <button type="button" class="icon-btn" onclick="cerrarModalEditar()" style="border:none;background:transparent;cursor:pointer;">
+        <i data-lucide="x" style="width:18px;height:18px;"></i>
+      </button>
+    </div>
+
+    <form id="form-editar-usuario">
+      <input type="hidden" id="edit-user-id">
+
+      <div class="field" style="margin-bottom:0.8rem;">
+        <label for="edit-correo">Correo electrónico</label>
+        <input class="input" type="text" id="edit-correo" disabled style="background:#f8fafc;cursor:not-allowed;">
+      </div>
+
+      <div class="field" style="margin-bottom:0.8rem;">
+        <label for="edit-nombre">Nombre *</label>
+        <input class="input" type="text" id="edit-nombre" required>
+      </div>
+
+      <div class="field" style="margin-bottom:0.8rem;">
+        <label for="edit-apellido">Apellido</label>
+        <input class="input" type="text" id="edit-apellido">
+      </div>
+
+      <div class="field" style="margin-bottom:0.8rem;">
+        <label for="edit-role">Rol en el sistema *</label>
+        <select class="input" id="edit-role" required>
+          <option value="REVISOR_JURIDICO">Revisor Jurídico / Abogado Analista</option>
+          <option value="APROBADOR_JURIDICO">Aprobador Jurídico / Firma Autorizada</option>
+          <option value="ADMINISTRADOR_PLATAFORMA">Administrador de la Plataforma</option>
+          <option value="AUDITOR">Auditor / Oficial de Cumplimiento</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin-bottom:1rem;display:flex;align-items:center;gap:0.6rem;">
+        <input type="checkbox" id="edit-activo" style="width:18px;height:18px;accent-color:var(--navy-600);cursor:pointer;">
+        <label for="edit-activo" style="margin:0;cursor:pointer;font-weight:600;">Usuario Activo</label>
+      </div>
+
+      <div id="alerta-edit" class="flash" style="display:none;margin-bottom:1rem;"></div>
+
+      <div class="flex justify-end gap-2">
+        <button type="button" class="btn btn-outline" onclick="cerrarModalEditar()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-edit">
+          <i data-lucide="check" class="icon" style="width:16px;height:16px"></i> Guardar cambios
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ROLES_DESC = {
+  REVISOR_JURIDICO:        'Analiza documentos, consulta IA y redacta observaciones.',
+  APROBADOR_JURIDICO:      'Valida el dictamen legal y firma electrónicamente.',
+  ADMINISTRADOR_PLATAFORMA:'Administra usuarios, roles, workflows y la plataforma.',
+  AUDITOR:                 'Acceso de solo lectura a trazabilidad y métricas.',
+};
+
+let TODOS_USUARIOS = [];
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await cargarUsuarios();
+
+  document.getElementById('role').addEventListener('change', function() {
+    document.getElementById('desc-rol').textContent = ROLES_DESC[this.value] || '';
+  });
+});
+
+async function cargarUsuarios() {
+  const body = document.getElementById('tabla-body');
+  try {
+    let usuarios = await apiGet('/api/v1/usuarios/');
+    if (!usuarios || !Array.isArray(usuarios)) {
+      usuarios = await apiGet('/api/v1/users/');
+    }
+
+    if (usuarios && Array.isArray(usuarios)) {
+      TODOS_USUARIOS = usuarios;
+      document.getElementById('conteo-usuarios').textContent = TODOS_USUARIOS.length;
+      renderUsuarios(TODOS_USUARIOS);
+      return;
+    }
+  } catch(e) {
+    console.warn('Error al cargar lista de usuarios desde /api/v1/usuarios/:', e);
+  }
+
+  // Fallback si la API aún no responde
+  body.innerHTML = `<tr><td colspan="4"><div class="empty-state">
+    <i data-lucide="database" class="icon"></i>
+    <div>No fue posible conectar con la lista de usuarios. Puedes gestionarlos también en SQLAdmin:</div>
+    <a href="/admin/usuario/list" target="_blank" class="btn btn-outline btn-sm" style="margin-top:.6rem">
+      Abrir SQLAdmin
+    </a>
+  </div></td></tr>`;
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderUsuarios(items) {
+  const body = document.getElementById('tabla-body');
+  if (!items || items.length === 0) {
+    body.innerHTML = '<tr><td colspan="4"><div class="empty-state">No hay usuarios registrados.</div></td></tr>';
+    return;
+  }
+
+  const roleLabels = {
+    REVISOR_JURIDICO: 'Revisor Jurídico',
+    APROBADOR_JURIDICO: 'Aprobador Jurídico',
+    ADMINISTRADOR_PLATAFORMA: 'Admin Plataforma',
+    AUDITOR: 'Auditor Oficial',
+  };
+
+  body.innerHTML = items.map(u => `<tr>
+    <td>
+      <strong>${u.nombre} ${u.apellido || ''}</strong><br>
+      <span class="cell-muted" style="font-size:0.78rem;">${u.correo}</span>
+    </td>
+    <td>
+      <span class="badge badge-navy" style="font-size:0.75rem;">
+        ${roleLabels[u.role] || (u.role || '').replace('_', ' ')}
+      </span>
+    </td>
+    <td>
+      <span class="badge ${u.activo ? 'badge-green' : 'badge-gray'}">
+        ${u.activo ? 'Activo' : 'Inactivo'}
+      </span>
+    </td>
+    <td>
+      <div class="flex items-center gap-2">
+        <button type="button" class="btn btn-outline btn-sm" style="padding:0.25rem 0.6rem;font-size:0.8rem;"
+                onclick="abrirModalEditar('${u.id}')">
+          <i data-lucide="edit-3" class="icon" style="width:13px;height:13px;"></i> Editar
+        </button>
+        <a href="/admin/usuario/details/${u.id}" target="_blank" class="cell-link" title="Ver en BD" style="font-size:0.78rem;">
+          BD
+        </a>
+      </div>
+    </td>
+  </tr>`).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function filtrarUsuarios() {
+  const q = document.getElementById('buscar-usuario').value.trim().toLowerCase();
+  renderUsuarios(q
+    ? TODOS_USUARIOS.filter(u =>
+        ((u.nombre || '') + ' ' + (u.apellido || '')).toLowerCase().includes(q) ||
+        (u.correo || '').toLowerCase().includes(q) ||
+        (u.role || '').toLowerCase().includes(q))
+    : TODOS_USUARIOS);
+}
+
+/* Abrir modal de edición */
+function abrirModalEditar(userId) {
+  const u = TODOS_USUARIOS.find(x => String(x.id) === String(userId));
+  if (!u) return;
+
+  document.getElementById('edit-user-id').value = u.id;
+  document.getElementById('edit-correo').value = u.correo;
+  document.getElementById('edit-nombre').value = u.nombre;
+  document.getElementById('edit-apellido').value = u.apellido || '';
+  document.getElementById('edit-role').value = u.role;
+  document.getElementById('edit-activo').checked = !!u.activo;
+
+  const al = document.getElementById('alerta-edit');
+  al.style.display = 'none';
+
+  const modal = document.getElementById('modal-editar');
+  modal.style.display = 'flex';
+  if (window.lucide) lucide.createIcons();
+}
+
+function cerrarModalEditar() {
+  document.getElementById('modal-editar').style.display = 'none';
+}
+
+/* Guardar cambios de usuario editado (PUT /api/v1/usuarios/{id}) */
+document.getElementById('form-editar-usuario').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const userId = document.getElementById('edit-user-id').value;
+  const btn = document.getElementById('btn-guardar-edit');
+  const al = document.getElementById('alerta-edit');
+
+  const payload = {
+    nombre: document.getElementById('edit-nombre').value.trim(),
+    apellido: document.getElementById('edit-apellido').value.trim() || null,
+    role: document.getElementById('edit-role').value,
+    activo: document.getElementById('edit-activo').checked,
+  };
+
+  btn.disabled = true;
+  al.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/v1/usuarios/${userId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    al.style.display = 'flex';
+    if (res.ok) {
+      al.className = 'flash flash-success';
+      al.textContent = 'Usuario actualizado correctamente.';
+      await cargarUsuarios();
+      setTimeout(() => { cerrarModalEditar(); }, 900);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      al.className = 'flash flash-error';
+      al.textContent = err.detail || 'Error al actualizar el usuario.';
+    }
+  } catch(err) {
+    al.style.display = 'flex';
+    al.className = 'flash flash-error';
+    al.textContent = 'Error de conexión al actualizar usuario.';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* Registrar nuevo usuario (POST /api/v1/usuarios/) */
+document.getElementById('form-usuario').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const al = document.getElementById('alerta-user');
+  const btn = document.getElementById('btn-registrar');
+
+  const payload = {
+    nombre:   document.getElementById('nombre').value.trim(),
+    apellido: document.getElementById('apellido').value.trim() || null,
+    correo:   document.getElementById('correo').value.trim(),
+    role:     document.getElementById('role').value,
+  };
+
+  btn.disabled = true;
+  al.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/v1/usuarios/', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    al.style.display = 'flex';
+    if (res.ok) {
+      al.className = 'flash flash-success';
+      al.textContent = `Se registró a ${payload.nombre} con el rol ${payload.role.replace('_',' ')}.`;
+      e.target.reset();
+      document.getElementById('desc-rol').textContent = '';
+      await cargarUsuarios();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      al.className = 'flash flash-error';
+      al.textContent = err.detail || 'No se pudo registrar al usuario.';
+    }
+  } catch(err) {
+    al.style.display = 'flex';
+    al.className = 'flash flash-error';
+    al.textContent = 'Error de conexión al registrar usuario.';
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+{% endblock %}

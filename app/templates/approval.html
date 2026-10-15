@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import status_badge %}
+{#
+  approval.html — Pantalla 9: Aprobación / Rechazo
+  ──────────────────────────────────────────────────
+  Roles: APROBADOR_JURIDICO, ADMINISTRADOR_PLATAFORMA
+  El aprobador ve el resumen de la solicitud y el dictamen del revisor,
+  luego elige: Aprobar, Solicitar cambios o Rechazar.
+  POST: /api/v1/solicitudes/{id}/decision
+#}
+{% block content %}
+<div class="flex items-center gap-2" style="margin-bottom:1rem;font-size:.83rem;color:var(--ink-soft)">
+  <a href="/api/v1/app/solicitudes/{{ solicitud_id }}" class="flex items-center gap-1 cell-link">
+    <i data-lucide="arrow-left" class="icon" style="width:14px;height:14px"></i> Volver al detalle
+  </a>
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 id="apr-titulo">Aprobación / Rechazo</h1>
+    <p style="margin-bottom:0.4rem;">Valida el dictamen del revisor y define el siguiente paso del flujo.</p>
+    <div class="flex items-center gap-2" style="margin-top:0.3rem;">
+      <span class="muted" style="font-size:0.8rem;font-weight:600;">ID Contrato / UUID:</span>
+      <code id="apr-id-completo" style="background:#f1f5f9;color:#0f172a;padding:0.2rem 0.5rem;border-radius:6px;font-size:0.8rem;font-family:monospace;border:1px solid #cbd5e1;user-select:all;">{{ solicitud_id }}</code>
+      <button type="button" class="btn btn-outline btn-sm" onclick="copiarIdContrato()" title="Copiar ID de Contrato" style="padding:0.2rem 0.6rem;font-size:0.75rem;">
+        <i data-lucide="copy" class="icon" style="width:13px;height:13px"></i> <span id="btn-copiar-texto">Copiar ID</span>
+      </button>
+    </div>
+  </div>
+  <span id="apr-badge"></span>
+</div>
+
+<div class="grid-2" style="align-items:start;">
+
+  <!-- Resumen de la solicitud -->
+  <div class="flex-col gap-3">
+    <div class="card card-pad">
+      <div class="section-title">Resumen de la solicitud</div>
+      <div class="flex-col gap-3" id="resumen-solicitud">
+        <div class="muted" style="font-size:.85rem;">Cargando información...</div>
+      </div>
+    </div>
+
+    <!-- Dictamen del revisor -->
+    <div class="card card-pad">
+      <div class="section-title">Dictamen del revisor jurídico</div>
+      <div id="dictamen-revisor">
+        <div class="muted" style="font-size:.85rem;">Cargando revisiones...</div>
+      </div>
+      <a id="link-comentarios" href="/api/v1/app/comentarios/{{ solicitud_id }}"
+         class="btn btn-outline btn-sm" style="margin-top:1rem;">
+        <i data-lucide="messages-square" class="icon" style="width:15px;height:15px"></i>
+        Ver comentarios completos
+      </a>
+    </div>
+  </div>
+
+  <!-- Panel de decisión -->
+  <form class="card card-pad" id="form-decision">
+    <div class="section-title">Tu decisión</div>
+    <p class="muted" style="margin-top:0;font-size:.87rem;">
+      Tu resolución quedará registrada en la trazabilidad del sistema
+      y notificará al equipo correspondiente.
+    </p>
+
+    <div class="field">
+      <label for="motivo">Comentario de la decisión (opcional)</label>
+      <textarea class="input" id="motivo" name="motivo"
+                placeholder="Justifica tu decisión o indica qué debe corregirse…"></textarea>
+    </div>
+
+    <div id="alerta-apr" class="flash" style="display:none;margin-bottom:1rem;"></div>
+
+    <div class="flex-col gap-2">
+      <button type="button" class="btn btn-primary btn-block" onclick="decidir('aprobar')">
+        <i data-lucide="check" class="icon" style="width:16px;height:16px"></i>
+        Aprobar y enviar a firma electrónica
+      </button>
+      <button type="button" class="btn btn-gold btn-block" onclick="decidir('cambios')">
+        <i data-lucide="rotate-ccw" class="icon" style="width:16px;height:16px"></i>
+        Solicitar cambios
+      </button>
+      <button type="button" class="btn btn-danger btn-block" onclick="decidir('rechazar')">
+        <i data-lucide="x" class="icon" style="width:16px;height:16px"></i>
+        Rechazar
+      </button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/*
+ * approval.js (inline) — Carga el detalle de la solicitud y las revisiones,
+ * y envía la decisión del aprobador a la API.
+ */
+const SOL_ID = "{{ solicitud_id }}";
+
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    /* Cargar datos de la solicitud */
+    const s = await apiGet(`/api/v1/solicitudes/${SOL_ID}`);
+    document.getElementById('apr-titulo').textContent = s.titulo;
+
+    const bmap = {BORRADOR:'badge-gray',EN_REVISION:'badge-amber',OBSERVADO:'badge-red',
+                  EN_APROBACION:'badge-blue',APROBADO:'badge-green',RECHAZADO:'badge-red',FIRMADO:'badge-navy'};
+    document.getElementById('apr-badge').innerHTML =
+      `<span class="badge ${bmap[s.estado]||'badge-gray'}">${s.estado.replace('_',' ')}</span>`;
+
+    /* Resumen */
+    const fila = (l, v) => `<div class="flex justify-between"><span class="muted">${l}</span><strong>${v||'—'}</strong></div>`;
+    document.getElementById('resumen-solicitud').innerHTML =
+      fila('Tipo', s.tipo_documento) +
+      fila('Prioridad', s.prioridad) +
+      fila('Fecha límite', s.fecha_limite ? s.fecha_limite.slice(0,10) : '—') +
+      fila('Descripción', s.descripcion || 'Sin descripción');
+
+    /* Revisiones previas */
+    const revs = await apiGet(`/api/v1/reviews/${SOL_ID}/revision`).catch(()=>null);
+    if (revs && revs.length > 0) {
+      const r = revs[revs.length - 1]; /* La más reciente */
+      const dmap = {APROBAR:'badge-green',SOLICITAR_CAMBIOS:'badge-amber',RECHAZAR:'badge-red',SIN_DECISION:'badge-gray'};
+      document.getElementById('dictamen-revisor').innerHTML = `
+        <div style="margin-bottom:.6rem;">
+          <span class="badge ${dmap[r.decision]||'badge-gray'}">${r.decision.replace('_',' ')}</span>
+        </div>
+        <p style="font-size:.86rem;color:var(--ink-soft);line-height:1.55;">${r.notas || 'Sin notas adicionales.'}</p>
+        <div class="muted" style="font-size:.76rem;">Revisado: ${(r.completado_at||r.empezado_at||'').slice(0,10)}</div>`;
+    } else {
+      document.getElementById('dictamen-revisor').innerHTML =
+        '<p class="muted" style="font-size:.85rem;">No hay revisiones registradas aún.</p>';
+    }
+  } catch(e) { console.warn('Error cargando aprobación:', e); }
+});
+
+/* Enviar decisión */
+async function decidir(decision) {
+  const motivo = document.getElementById('motivo').value.trim();
+  const al = document.getElementById('alerta-apr');
+
+  /* Deshabilitar todos los botones de decisión mientras procesa */
+  document.querySelectorAll('#form-decision button').forEach(b => b.disabled = true);
+
+  try {
+    const token = sessionStorage.getItem('plurione_auth_token') || '';
+    const res = await fetch(`/api/v1/solicitudes/${SOL_ID}/decision`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ decision, motivo }),
+    });
+
+    al.style.display = 'flex';
+    if (res.ok) {
+      const data = await res.json();
+      al.className = 'flash flash-success';
+      const mensajes = {
+        aprobar:   '✓ Solicitud aprobada. Redirigiendo a firma electrónica...',
+        cambios:   '↩ Se solicitaron cambios. Notificando al revisor...',
+        rechazar:  '✕ Solicitud rechazada. El responsable de la solicitud será notificado.',
+      };
+      al.textContent = mensajes[decision] || 'Decisión registrada.';
+
+      /* Redirigir según la decisión */
+      setTimeout(() => {
+        if (decision === 'aprobar')
+          window.location.href = `/api/v1/app/firma/${SOL_ID}`;
+        else
+          window.location.href = '/api/v1/app/solicitudes';
+      }, 1500);
+    } else {
+      const err = await res.json().catch(()=>({}));
+      al.className = 'flash flash-error';
+      al.textContent = err.detail || 'No se pudo registrar la decisión.';
+      document.querySelectorAll('#form-decision button').forEach(b => b.disabled = false);
+    }
+  } catch(e) {
+    al.style.display = 'flex';
+    al.className = 'flash flash-error';
+    al.textContent = 'Error de conexión. Intenta de nuevo.';
+    document.querySelectorAll('#form-decision button').forEach(b => b.disabled = false);
+  }
+}
+
+function copiarIdContrato() {
+  const id = SOL_ID;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(id).then(() => {
+      const btn = document.getElementById('btn-copiar-texto');
+      if (btn) btn.textContent = '¡Copiado!';
+      setTimeout(() => { if (btn) btn.textContent = 'Copiar ID'; }, 2000);
+    }).catch(() => prompt('ID del Contrato:', id));
+  } else {
+    prompt('ID del Contrato:', id);
+  }
+}
+</script>
+{% endblock %}

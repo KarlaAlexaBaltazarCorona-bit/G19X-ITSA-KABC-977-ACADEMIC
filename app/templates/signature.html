@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{#
+  signature.html — Pantalla 10: Firma electrónica
+  ─────────────────────────────────────────────────
+  Roles: APROBADOR_JURIDICO, ADMINISTRADOR_PLATAFORMA
+  Solo disponible para solicitudes en estado APROBADO.
+  Flujo:
+    1. Se carga el detalle de la solicitud aprobada
+    2. (Opcional) El firmante puede subir el PDF ya firmado físicamente
+    3. Azure Document Intelligence detecta si el PDF contiene una firma real (obs. 15.8)
+    4. POST /api/v1/signatures/{id}/request → crea la solicitud de firma
+    5. POST /api/v1/signatures/{id}/sign   → registra la firma y cierra el flujo
+#}
+{% block content %}
+<div class="flex items-center gap-2" style="margin-bottom:1rem;font-size:.83rem;color:var(--ink-soft)">
+  <a href="/api/v1/app/solicitudes/{{ solicitud_id }}" class="flex items-center gap-1 cell-link">
+    <i data-lucide="arrow-left" class="icon" style="width:14px;height:14px"></i> Volver al detalle
+  </a>
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 id="firma-titulo">Firma electrónica</h1>
+    <p id="firma-sub">Cargando información de la solicitud...</p>
+  </div>
+  <span id="firma-badge"></span>
+</div>
+
+<div class="grid-2" style="align-items:start;">
+
+  <!-- Vista previa del documento aprobado -->
+  <div class="card card-pad">
+    <div class="section-title">Documento aprobado listo para firma</div>
+    <div id="doc-preview-firma" style="background:#f4f2ec;border:1px solid var(--line);border-radius:12px;height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--ink-faint);gap:.5rem;margin:.6rem 0;">
+      <i data-lucide="file-pen-line" style="width:32px;height:32px;"></i>
+      <span style="font-size:.85rem;">Cargando documento...</span>
+    </div>
+    <div class="flex-col gap-3" id="info-firma" style="margin-top:.8rem;"></div>
+  </div>
+
+  <!-- Panel de firma -->
+  <div class="card card-pad">
+    <div class="section-title">Firmar documento</div>
+    <p class="muted" style="margin-top:0;font-size:.87rem;line-height:1.6;">
+      Al firmar confirmas que autorizas esta solicitud en representación de PluriOne S.A. de C.V.
+      La firma queda registrada con fecha, hora y tu identidad de Microsoft Entra ID en la trazabilidad.
+    </p>
+
+    <!--
+      Campo opcional: subir el PDF ya firmado físicamente.
+      Si se sube, Azure Document Intelligence verificará que contenga
+      una firma/sello antes de marcar la solicitud como FIRMADO (obs. 15.8).
+    -->
+    <div class="field" style="margin-top:1rem;">
+      <label>
+        PDF firmado físicamente (opcional)
+        <span class="help-text" style="display:inline;font-weight:400;">
+          — Si lo subes, el sistema verificará que contiene una firma real.
+        </span>
+      </label>
+      <div style="border:1.5px dashed var(--line);border-radius:12px;padding:1rem;text-align:center;background:#fcfbf9;cursor:pointer"
+           onclick="document.getElementById('pdf-firmado').click()">
+        <i data-lucide="upload-cloud" class="icon" style="width:22px;height:22px;color:var(--ink-faint)"></i>
+        <div style="font-size:.82rem;color:var(--ink-soft);margin-top:.4rem;">Clic para adjuntar el PDF firmado</div>
+        <div id="nombre-pdf-firma" style="font-size:.78rem;color:var(--navy-700);font-weight:600;margin-top:.3rem;"></div>
+      </div>
+      <input type="file" id="pdf-firmado" accept=".pdf" style="display:none"
+             onchange="document.getElementById('nombre-pdf-firma').textContent=this.files[0]?'📄 '+this.files[0].name:''">
+    </div>
+
+    <!-- Confirmación obligatoria antes de firmar -->
+    <label class="checkbox-row" style="margin:1rem 0;font-weight:400;">
+      <input type="checkbox" id="chk-confirmar">
+      He revisado el documento y confirmo mi decisión de firmarlo en representación de PluriOne S.A. de C.V.
+    </label>
+
+    <div id="alerta-firma" class="flash" style="display:none;margin-bottom:1rem;"></div>
+
+    <button class="btn btn-primary btn-block" id="btn-firmar" onclick="firmarDocumento()">
+      <i data-lucide="pen-line" class="icon" style="width:16px;height:16px"></i>
+      Firmar electrónicamente
+    </button>
+
+    <!-- Estado de la firma (visible si ya existe una en proceso) -->
+    <div id="estado-firma" style="margin-top:1rem;display:none;">
+      <div class="section-title" style="margin-top:1rem;">Estado de la firma</div>
+      <div id="estado-firma-contenido"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Otras solicitudes pendientes de firma (solo Admin) -->
+{% if current_role == 'ADMINISTRADOR_PLATAFORMA' %}
+<div class="table-wrap" id="otras-firmas-wrap" style="margin-top:1.4rem;display:none;">
+  <div class="card-header"><h3>Otras solicitudes pendientes de firma</h3></div>
+  <table>
+    <thead><tr><th>N°</th><th>Título</th><th>Tipo</th><th></th></tr></thead>
+    <tbody id="otras-firmas-body"></tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+/*
+ * signature.js (inline) — Gestiona el flujo de firma electrónica.
+ * 1. Carga los datos de la solicitud aprobada
+ * 2. Crea la solicitud de firma en la API si no existe
+ * 3. Registra la firma con o sin PDF adjunto
+ */
+const SOL_ID = "{{ solicitud_id }}";
+const ROL    = "{{ current_role }}";
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await cargarDetalle();
+  await cargarEstadoFirma();
+  if (ROL === 'ADMINISTRADOR_PLATAFORMA') await cargarOtrasFirmas();
+});
+
+async function cargarDetalle() {
+  try {
+    const s = await apiGet(`/api/v1/solicitudes/${SOL_ID}`);
+    document.getElementById('firma-titulo').textContent = s.titulo;
+    document.getElementById('firma-sub').textContent =
+      s.estado === 'APROBADO'
+        ? 'Esta solicitud fue aprobada y está lista para firma.'
+        : `Estado actual: ${s.estado.replace('_',' ')}`;
+
+    const bmap = {APROBADO:'badge-green',FIRMADO:'badge-navy',RECHAZADO:'badge-red'};
+    document.getElementById('firma-badge').innerHTML =
+      `<span class="badge ${bmap[s.estado]||'badge-blue'}">${s.estado.replace('_',' ')}</span>`;
+
+    /* Documento adjunto */
+    const docs = await apiGet(`/api/v1/documents/${SOL_ID}`).catch(()=>[]);
+    const docNombre = docs?.[0]?.nombre || s.titulo;
+    document.getElementById('doc-preview-firma').innerHTML = `
+      <i data-lucide="file-pen-line" style="width:32px;height:32px;"></i>
+      <span style="font-size:.85rem;">${docNombre}</span>`;
+    if(window.lucide) lucide.createIcons();
+
+    const fila = (l,v)=>`<div class="flex justify-between"><span class="muted">${l}</span><strong>${v||'—'}</strong></div>`;
+    document.getElementById('info-firma').innerHTML =
+      fila('Tipo', s.tipo_documento) +
+      fila('Prioridad', s.prioridad) +
+      fila('Aprobado el', (s.finalizo_at||s.actualizado_at||'').slice(0,10));
+
+    /* Si la solicitud ya está firmada, deshabilitar el botón */
+    if (s.estado === 'FIRMADO') {
+      document.getElementById('btn-firmar').disabled = true;
+      document.getElementById('btn-firmar').textContent = 'Documento ya firmado';
+      document.getElementById('chk-confirmar').disabled = true;
+    }
+  } catch(e) { console.warn('Error cargando firma:', e); }
+}
+
+async function cargarEstadoFirma() {
+  try {
+    const firmas = await apiGet(`/api/v1/signatures/${SOL_ID}/status`);
+    if (!firmas || firmas.length === 0) return;
+    const f = firmas[firmas.length - 1];
+    const el = document.getElementById('estado-firma');
+    const contenido = document.getElementById('estado-firma-contenido');
+    const sm = {PENDIENTE:'badge-amber',FIRMADO:'badge-green',RECHAZADO:'badge-red'};
+    contenido.innerHTML = `
+      <div class="flex justify-between">
+        <span class="muted">Estado</span>
+        <span class="badge ${sm[f.estado]||'badge-gray'}">${f.estado}</span>
+      </div>
+      <div class="flex justify-between" style="margin-top:.5rem;">
+        <span class="muted">Firma detectada en PDF</span>
+        <strong>${f.firma_detectada_en_documento || 'NO_VERIFICADO'}</strong>
+      </div>
+      ${f.firmado_at ? `<div class="flex justify-between" style="margin-top:.5rem;"><span class="muted">Firmado el</span><strong>${f.firmado_at.slice(0,16).replace('T',' ')}</strong></div>` : ''}`;
+    el.style.display = 'block';
+  } catch(e) { /* No hay firma aún */ }
+}
+
+async function cargarOtrasFirmas() {
+  try {
+    const todas = await apiGet('/api/v1/solicitudes/');
+    const pendientes = (todas||[]).filter(s => s.estado === 'APROBADO' && s.id !== SOL_ID);
+    if (pendientes.length === 0) return;
+    document.getElementById('otras-firmas-wrap').style.display = 'block';
+    document.getElementById('otras-firmas-body').innerHTML = pendientes.map(s => `<tr>
+      <td class="cell-muted">${s.numero_respuesta||s.id.slice(0,8)+'...'}</td>
+      <td><strong>${s.titulo}</strong></td>
+      <td class="cell-muted">${s.tipo_documento}</td>
+      <td><a href="/api/v1/app/firma/${s.id}" class="cell-link">Firmar</a></td>
+    </tr>`).join('');
+  } catch(e) {}
+}
+
+async function firmarDocumento() {
+  if (!document.getElementById('chk-confirmar').checked) {
+    mostrarAlerta('error','Debes confirmar que has revisado el documento antes de firmar.');
+    return;
+  }
+  const btn = document.getElementById('btn-firmar');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Procesando firma...';
+
+  try {
+    const headers = {
+      'Authorization': 'Bearer ' + token,
+      ...(sessionStorage.getItem('plurione_api_key') ? { 'X-API-KEY': sessionStorage.getItem('plurione_api_key') } : {}),
+    };
+
+    /* Paso 1: solicitar firma si no existe */
+    await fetch(`/api/v1/signatures/${SOL_ID}/request`, { method:'POST', headers: {...headers,'Content-Type':'application/json'} });
+
+    /* Paso 2: firmar (con o sin PDF adjunto) */
+    const archivoPDF = document.getElementById('pdf-firmado').files[0];
+    let bodyFirma;
+    let headersFirma = { ...headers };
+
+    if (archivoPDF) {
+      /* Con PDF: el backend usará Document Intelligence para verificar la firma */
+      const fd = new FormData();
+      fd.append('archivo', archivoPDF);
+      bodyFirma = fd;
+      /* NO poner Content-Type: el navegador lo calcula con el boundary multipart */
+    } else {
+      /* Sin PDF: firma solo electrónica sin verificación de PDF */
+      headersFirma['Content-Type'] = 'application/json';
+      bodyFirma = JSON.stringify({});
+    }
+
+    const res = await fetch(`/api/v1/signatures/${SOL_ID}/sign`, {
+      method: 'POST', headers: headersFirma, body: bodyFirma,
+    });
+
+    if (res.ok) {
+      mostrarAlerta('success','✓ Documento firmado electrónicamente. Redirigiendo...');
+      setTimeout(() => window.location.href = '/api/v1/app/solicitudes', 1500);
+    } else {
+      const err = await res.json().catch(()=>({}));
+      mostrarAlerta('error', err.detail || 'No se pudo completar la firma.');
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="pen-line" style="width:16px;height:16px"></i> Firmar electrónicamente';
+      if(window.lucide) lucide.createIcons();
+    }
+  } catch(e) {
+    mostrarAlerta('error','Error de conexión. Intenta de nuevo.');
+    btn.disabled = false;
+  }
+}
+
+function mostrarAlerta(tipo, msg) {
+  const a = document.getElementById('alerta-firma');
+  a.className = `flash flash-${tipo}`;
+  a.textContent = msg;
+  a.style.display = 'flex';
+}
+</script>
+{% endblock %}

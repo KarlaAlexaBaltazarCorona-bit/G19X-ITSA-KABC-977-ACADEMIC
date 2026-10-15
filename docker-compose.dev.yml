@@ -1,0 +1,46 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# docker-compose.dev.yml — Solo PostgreSQL (sin contenedor de la API)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# CUÁNDO USAR ESTE ARCHIVO:
+#   Cuando quieres correr el backend directamente con "python main.py"
+#   (fuera de Docker) pero necesitas PostgreSQL levantado localmente.
+#   Es más rápido para desarrollo porque no tienes que reconstruir la
+#   imagen Docker cada vez que cambias código.
+#
+# CUÁNDO USAR docker-compose.yml EN SU LUGAR:
+#   Cuando quieres probar TODO dentro de Docker (API + BD juntos),
+#   o cuando quieres simular el entorno de producción.
+#
+# CÓMO USARLO:
+#   Levantar:   docker compose -f docker-compose.dev.yml up -d
+#   Detener:    docker compose -f docker-compose.dev.yml down
+#
+# DESPUÉS DE LEVANTARLO:
+#   1. python main.py              (arrancar el backend localmente)
+#   2. alembic upgrade head        (crear las tablas si es la primera vez)
+# ═══════════════════════════════════════════════════════════════════════════
+
+services:
+  db:
+    image: postgres:16
+    container_name: plastione-postgres-dev
+    restart: always
+    environment:
+      POSTGRES_USER:     legaltech
+      POSTGRES_PASSWORD: legaltech_dev
+      POSTGRES_DB:       legaltech_db
+    # Puerto expuesto para conectarse con herramientas como DBeaver o pgAdmin
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U legaltech -d legaltech_db"]
+      interval: 5s
+      timeout:  5s
+      retries:  5
+
+volumes:
+  pgdata_dev:
+    name: plastione-pgdata-dev

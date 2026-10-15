@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import status_badge, rol_label %}
+{#
+  document_detail.html — Detalle de una solicitud de revisión
+  ─────────────────────────────────────────────────────────────
+  Roles: TODOS
+  Muestra: título, estado, participantes, documentos adjuntos y acciones disponibles según rol.
+  Datos: GET /api/v1/solicitudes/{id}
+#}
+{% block content %}
+<!-- Migas de pan -->
+<div class="flex items-center gap-2" style="margin-bottom:1rem;font-size:.83rem;color:var(--ink-soft)">
+  <a href="/api/v1/app/solicitudes" class="flex items-center gap-1 cell-link">
+    <i data-lucide="arrow-left" class="icon" style="width:14px;height:14px"></i> Solicitudes
+  </a>
+  <span>›</span>
+  <span id="detalle-titulo">Cargando...</span>
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 id="detalle-num">—</h1>
+    <p id="detalle-nombre" style="font-weight:600;font-size:1.1rem;margin-bottom:0.4rem;"></p>
+    <div class="flex items-center gap-2" style="margin-top:0.3rem;">
+      <span class="muted" style="font-size:0.8rem;font-weight:600;">ID Contrato / UUID:</span>
+      <code id="detalle-id-completo" style="background:#f1f5f9;color:#0f172a;padding:0.2rem 0.5rem;border-radius:6px;font-size:0.8rem;font-family:monospace;border:1px solid #cbd5e1;user-select:all;">{{ solicitud_id }}</code>
+      <button type="button" class="btn btn-outline btn-sm" onclick="copiarIdContrato()" title="Copiar ID de Contrato" style="padding:0.2rem 0.6rem;font-size:0.75rem;">
+        <i data-lucide="copy" class="icon" style="width:13px;height:13px"></i> <span id="btn-copiar-texto">Copiar ID</span>
+      </button>
+    </div>
+  </div>
+  <span id="detalle-badge"></span>
+</div>
+
+<!-- Stepper Visual del Workflow (HU-01, Escenario 2) -->
+<div class="card card-pad" style="margin-bottom:1.5rem;overflow-x:auto;">
+  <div class="section-title" style="margin-bottom:1rem;">Seguimiento del Flujo de Revisión</div>
+  <div id="workflow-stepper" class="flex items-center justify-between" style="min-width:620px;padding:0.5rem 1rem;">
+    <div class="muted" style="font-size:.85rem;">Cargando flujo...</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- Información general -->
+  <div class="card card-pad">
+    <div class="section-title">Información general</div>
+    <div class="flex-col gap-3" id="info-general">
+      <div class="muted" style="font-size:.85rem;">Cargando información...</div>
+    </div>
+  </div>
+
+  <!-- Participantes + Acciones disponibles -->
+  <div class="flex-col gap-3">
+    <div class="card card-pad">
+      <div class="section-title">Participantes</div>
+      <div id="participantes"><div class="muted" style="font-size:.85rem;">Cargando...</div></div>
+    </div>
+    <div class="card card-pad">
+      <div class="section-title">Acciones disponibles</div>
+      <div class="flex-col gap-2" id="acciones"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SOL_ID = "{{ solicitud_id }}";
+const ROL    = "{{ current_role }}";
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await cargarDetalle();
+});
+
+async function cargarDetalle() {
+  try {
+    const s = await apiGet(`/api/v1/solicitudes/${SOL_ID}`);
+    if (!s) return;
+
+    /* Encabezado */
+    const num = s.numero_respuesta || s.id.slice(0,8)+'...';
+    document.getElementById('detalle-titulo').textContent = s.titulo;
+    document.getElementById('detalle-num').textContent = num;
+    document.getElementById('detalle-nombre').textContent = s.titulo;
+    const b={BORRADOR:'badge-gray',EN_REVISION:'badge-amber',OBSERVADO:'badge-red',EN_APROBACION:'badge-blue',APROBADO:'badge-green',RECHAZADO:'badge-red',FIRMADO:'badge-navy'};
+    document.getElementById('detalle-badge').innerHTML =
+      `<span class="badge ${b[s.estado]||'badge-gray'}">${s.estado.replace('_',' ')}</span>`;
+
+    /* Renderizar Stepper */
+    renderStepper(s.estado);
+
+    /* Información general */
+    const fila=(label,val)=>`<div class="flex justify-between"><span class="muted">${label}</span><strong>${val||'—'}</strong></div>`;
+    document.getElementById('info-general').innerHTML =
+      fila('ID Contrato (UUID)', `<code style="font-size:0.8rem;background:#f1f5f9;padding:1px 4px;border-radius:4px;">${s.id}</code>`) +
+      fila('Folio de expediente', s.numero_respuesta || '—') +
+      fila('Tipo de documento', s.tipo_documento) +
+      fila('Prioridad', s.prioridad) +
+      fila('Estado', s.estado.replace('_',' ')) +
+      fila('Fecha límite', s.fecha_limite ? s.fecha_limite.slice(0,10) : '—') +
+      fila('Creado', s.creado_at ? s.creado_at.slice(0,10) : '—') +
+      fila('Actualizado', s.actualizado_at ? s.actualizado_at.slice(0,10) : '—');
+
+    /* Participantes */
+    document.getElementById('participantes').innerHTML = `
+      <div class="flex items-center gap-3" style="margin-bottom:.7rem">
+        <div class="avatar">${'U'}</div>
+        <div><strong style="font-size:.86rem">Registrado por</strong><div class="faint" style="font-size:.76rem">${s.requested_id?.slice(0,8)}...</div></div>
+      </div>
+      ${s.revicion_id ? `<div class="flex items-center gap-3">
+        <div class="avatar">R</div>
+        <div><strong style="font-size:.86rem">Revisor asignado</strong><div class="faint" style="font-size:.76rem">${s.revicion_id?.slice(0,8)}...</div></div>
+      </div>` : '<div class="muted" style="font-size:.82rem;font-style:italic;">Sin revisor asignado (en borrador)</div>'}`;
+
+    /* Acciones según rol y estado */
+    const acciones = [];
+
+    if (s.estado === 'BORRADOR' && ['REVISOR_JURIDICO', 'APROBADOR_JURIDICO', 'ADMINISTRADOR_PLATAFORMA'].includes(ROL)) {
+      acciones.push(`<button onclick="enviarABorrador()" class="btn btn-primary btn-block" style="justify-content:flex-start"><i data-lucide="send" class="icon" style="width:16px;height:16px"></i> Enviar a revisión jurídica</button>`);
+    }
+
+    if(['REVISOR_JURIDICO','ADMINISTRADOR_PLATAFORMA'].includes(ROL) && s.estado !== 'BORRADOR')
+      acciones.push(`<a href="/api/v1/app/revision/${SOL_ID}" class="btn btn-outline btn-block" style="justify-content:flex-start"><i data-lucide="scan-search" class="icon" style="width:16px;height:16px"></i> Revisión jurídica</a>`);
+    if(['REVISOR_JURIDICO','APROBADOR_JURIDICO','ADMINISTRADOR_PLATAFORMA'].includes(ROL) && s.estado !== 'BORRADOR')
+      acciones.push(`<a href="/api/v1/app/comentarios/${SOL_ID}" class="btn btn-outline btn-block" style="justify-content:flex-start"><i data-lucide="messages-square" class="icon" style="width:16px;height:16px"></i> Comentarios colaborativos</a>`);
+    if(['APROBADOR_JURIDICO','ADMINISTRADOR_PLATAFORMA'].includes(ROL) && s.estado !== 'BORRADOR') {
+      acciones.push(`<a href="/api/v1/app/versiones/${SOL_ID}" class="btn btn-outline btn-block" style="justify-content:flex-start"><i data-lucide="history" class="icon" style="width:16px;height:16px"></i> Historial de versiones</a>`);
+      acciones.push(`<a href="/api/v1/app/aprobacion/${SOL_ID}" class="btn btn-outline btn-block" style="justify-content:flex-start"><i data-lucide="gavel" class="icon" style="width:16px;height:16px"></i> Aprobación / Rechazo</a>`);
+    }
+    if(s.estado === 'APROBADO' && ['APROBADOR_JURIDICO','ADMINISTRADOR_PLATAFORMA'].includes(ROL))
+      acciones.push(`<a href="/api/v1/app/firma/${SOL_ID}" class="btn btn-outline btn-block" style="justify-content:flex-start"><i data-lucide="pen-line" class="icon" style="width:16px;height:16px"></i> Firma electrónica</a>`);
+    document.getElementById('acciones').innerHTML = acciones.join('') || '<p class="muted">No hay acciones pendientes en este momento.</p>';
+    if(window.lucide) lucide.createIcons();
+  } catch(e) {
+    console.error('Error al cargar detalle:', e);
+  }
+}
+
+function renderStepper(estado) {
+  const etapas = [
+    { id: 'BORRADOR', label: '1. Borrador', icon: 'file-text' },
+    { id: 'EN_REVISION', label: '2. En Revisión', icon: 'scan-search' },
+    { id: 'EN_APROBACION', label: '3. Aprobación', icon: 'gavel' },
+    { id: 'EN_FIRMA', label: '4. En Firma', icon: 'pen-line' },
+    { id: 'FIRMADO', label: '5. Cerrado', icon: 'check-circle-2' }
+  ];
+
+  const orden = {
+    'BORRADOR': 0,
+    'EN_REVISION': 1,
+    'OBSERVADO': 1,
+    'EN_APROBACION': 2,
+    'APROBADO': 2,
+    'EN_FIRMA': 3,
+    'FIRMADO': 4,
+    'RECHAZADO': -1
+  };
+
+  const idxActual = orden[estado] ?? 0;
+  const esRechazado = estado === 'RECHAZADO';
+
+  const html = etapas.map((et, idx) => {
+    let badgeBg = '#f1f5f9';
+    let iconColor = '#94a3b8';
+    let labelColor = '#64748b';
+
+    if (esRechazado) {
+      if (idx <= 1) { badgeBg = '#e2e8f0'; iconColor = '#475569'; }
+      if (idx === 2) { badgeBg = '#fee2e2'; iconColor = '#ef4444'; labelColor = '#b91c1c'; }
+    } else {
+      if (idx < idxActual) {
+        badgeBg = '#dcfce7';
+        iconColor = '#16a34a';
+        labelColor = '#15803d';
+      } else if (idx === idxActual) {
+        badgeBg = '#dbeafe';
+        iconColor = '#2563eb';
+        labelColor = '#1d4ed8';
+      }
+    }
+
+    const isLast = idx === etapas.length - 1;
+    const connector = !isLast ? `
+      <div style="flex:1;height:3px;background:${idx < idxActual && !esRechazado ? '#16a34a' : '#e2e8f0'};margin:0 12px;min-width:30px;"></div>
+    ` : '';
+
+    return `
+      <div class="flex items-center ${isLast ? '' : 'flex-1'}">
+        <div class="flex flex-col items-center" style="text-align:center;">
+          <div style="width:38px;height:38px;border-radius:50%;background:${badgeBg};display:flex;align-items:center;justify-content:center;color:${iconColor};margin-bottom:6px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+            <i data-lucide="${et.icon}" style="width:18px;height:18px;"></i>
+          </div>
+          <span style="font-size:0.78rem;font-weight:600;color:${labelColor};white-space:nowrap;">${et.label}</span>
+        </div>
+        ${connector}
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('workflow-stepper').innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function enviarABorrador() {
+  if (!confirm('¿Deseas enviar esta solicitud formalmente al flujo de revisión jurídica?')) return;
+  try {
+    const res = await apiPost(`/api/v1/solicitudes/${SOL_ID}/enviar`);
+    if (res) {
+      alert('Solicitud enviada a revisión jurídica con éxito.');
+      await cargarDetalle();
+    }
+  } catch(e) {
+    alert('Error al enviar la solicitud: ' + (e.message || e));
+  }
+}
+
+function copiarIdContrato() {
+  const id = SOL_ID;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(id).then(() => {
+      const btn = document.getElementById('btn-copiar-texto');
+      if (btn) btn.textContent = '¡Copiado!';
+      setTimeout(() => { if (btn) btn.textContent = 'Copiar ID'; }, 2000);
+    }).catch(() => fallbackCopiar(id));
+  } else {
+    fallbackCopiar(id);
+  }
+}
+
+function fallbackCopiar(id) {
+  prompt('ID de Contrato / Solicitud:', id);
+}
+</script>
+{% endblock %}

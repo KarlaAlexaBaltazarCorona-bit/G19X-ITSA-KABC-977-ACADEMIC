@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import status_badge %}
+{#
+  documents.html — Pantalla 4: Listado general de solicitudes
+  ────────────────────────────────────────────────────────────
+  Roles: TODOS (REVISOR_JURIDICO, APROBADOR_JURIDICO, ADMINISTRADOR_PLATAFORMA, AUDITOR)
+  Muestra todas las solicitudes de revisión jurídica.
+  Datos: GET /api/v1/solicitudes/
+#}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Solicitudes</h1>
+    <p>Listado general de solicitudes, contratos, convenios y políticas.</p>
+  </div>
+  {% if current_role in ['REVISOR_JURIDICO', 'APROBADOR_JURIDICO', 'ADMINISTRADOR_PLATAFORMA'] %}
+  <a href="/api/v1/app/nueva" class="btn btn-primary">
+    <i data-lucide="file-plus-2" class="icon" style="width:16px;height:16px"></i>
+    Nueva solicitud
+  </a>
+  {% endif %}
+</div>
+
+<!-- Filtros -->
+<div class="filter-bar">
+  <div class="filter-field">
+    <label>Buscar</label>
+    <input class="input" type="text" id="filtro-q" placeholder="Título o número">
+  </div>
+  <div class="filter-field">
+    <label>Estado</label>
+    <select class="input" id="filtro-estado">
+      <option value="">Todos</option>
+      <option>BORRADOR</option>
+      <option>EN_REVISION</option>
+      <option>OBSERVADO</option>
+      <option>EN_APROBACION</option>
+      <option>APROBADO</option>
+      <option>RECHAZADO</option>
+      <option>FIRMADO</option>
+    </select>
+  </div>
+  <div class="filter-field">
+    <label>Tipo de documento</label>
+    <select class="input" id="filtro-tipo">
+      <option value="">Todos</option>
+      <option>contrato</option>
+      <option>convenio</option>
+      <option>politica</option>
+    </select>
+  </div>
+  <div class="filter-actions">
+    <button type="button" class="btn btn-primary btn-sm" onclick="filtrar()">
+      <i data-lucide="search" class="icon" style="width:15px;height:15px"></i> Buscar
+    </button>
+    <button type="button" class="btn btn-outline btn-sm" onclick="limpiar()">Limpiar</button>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>N°</th><th>Título</th><th>Tipo</th><th>Prioridad</th><th>Estado</th><th>Actualizado</th><th></th></tr>
+    </thead>
+    <tbody id="tabla-body">
+      <tr><td colspan="7"><div class="empty-state">Cargando solicitudes...</div></td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let TODAS = [];
+
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    TODAS = await apiGet('/api/v1/solicitudes/') || [];
+    render(TODAS);
+  } catch(e) {
+    document.getElementById('tabla-body').innerHTML =
+      '<tr><td colspan="7"><div class="empty-state">Error al cargar los datos.</div></td></tr>';
+  }
+});
+
+function render(items) {
+  const body = document.getElementById('tabla-body');
+  if (!items.length) {
+    body.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i data-lucide="folder-open" class="icon"></i><div>No se encontraron solicitudes.</div></div></td></tr>';
+    if(window.lucide)lucide.createIcons(); return;
+  }
+  const p={URGENTE:'badge-red',ALTA:'badge-amber',NORMAL:'badge-blue',BAJA:'badge-gray'};
+  const b={BORRADOR:'badge-gray',EN_REVISION:'badge-amber',OBSERVADO:'badge-red',EN_APROBACION:'badge-blue',APROBADO:'badge-green',RECHAZADO:'badge-red',FIRMADO:'badge-navy'};
+  body.innerHTML = items.map(s=>`<tr>
+    <td>
+      <strong>${s.numero_respuesta||'SIN-FOLIO'}</strong>
+      <div class="flex items-center gap-1" style="margin-top:2px;">
+        <code style="font-size:0.75rem;background:#f1f5f9;color:#475569;padding:1px 4px;border-radius:3px;">${s.id}</code>
+        <button type="button" class="btn btn-outline btn-sm" style="padding:1px 5px;font-size:0.7rem;line-height:1;" title="Copiar ID de Contrato" onclick="copiarIdTabla('${s.id}', this)">
+          <i data-lucide="copy" style="width:11px;height:11px;"></i>
+        </button>
+      </div>
+    </td>
+    <td><strong>${s.titulo}</strong></td>
+    <td class="cell-muted">${s.tipo_documento}</td>
+    <td><span class="badge ${p[s.prioridad]||'badge-gray'}">${s.prioridad}</span></td>
+    <td><span class="badge ${b[s.estado]||'badge-gray'}">${s.estado.replace('_',' ')}</span></td>
+    <td class="cell-muted">${(s.actualizado_at||s.creado_at||'').slice(0,10)}</td>
+    <td><a href="/api/v1/app/solicitudes/${s.id}" class="cell-link">Ver detalle</a></td>
+  </tr>`).join('');
+  if(window.lucide)lucide.createIcons();
+}
+
+function copiarIdTabla(id, btn) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(id).then(() => {
+      btn.innerHTML = '<span style="color:var(--gold-600);font-size:0.7rem;">✓</span>';
+      setTimeout(() => {
+        btn.innerHTML = '<i data-lucide="copy" style="width:11px;height:11px;"></i>';
+        if(window.lucide) lucide.createIcons();
+      }, 1500);
+    }).catch(() => prompt('ID del Contrato:', id));
+  } else {
+    prompt('ID del Contrato:', id);
+  }
+}
+
+
+function filtrar() {
+  const q  = document.getElementById('filtro-q').value.trim().toLowerCase();
+  const es = document.getElementById('filtro-estado').value;
+  const ti = document.getElementById('filtro-tipo').value;
+  render(TODAS.filter(s =>
+    (!q  || s.titulo.toLowerCase().includes(q)||(s.numero_respuesta||'').toLowerCase().includes(q)) &&
+    (!es || s.estado === es) &&
+    (!ti || s.tipo_documento === ti)
+  ));
+}
+function limpiar(){
+  document.getElementById('filtro-q').value='';
+  document.getElementById('filtro-estado').value='';
+  document.getElementById('filtro-tipo').value='';
+  render(TODAS);
+}
+</script>
+{% endblock %}

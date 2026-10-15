@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<!--
+  login.html — Pantalla de acceso institucional para PluriOne S.A. de C.V.
+  ─────────────────────────────────────────────────────────────────────────
+  CÓMO FUNCIONA:
+    1. La página carga y llama a /api/v1/auth/config para obtener
+       ENTRA_CLIENT_ID y ENTRA_TENANT_ID desde el servidor (están en el .env,
+       nunca en el código fuente).
+    2. Con esos datos inicializa la librería MSAL de Microsoft.
+    3. Al pulsar "Iniciar sesión", MSAL abre el popup de Microsoft Entra ID.
+    4. Microsoft valida las credenciales corporativas y devuelve un token JWT.
+    5. El token se envía a /api/v1/auth/me para verificar que el usuario
+       existe y tiene un rol asignado en el backend.
+    6. Si todo está bien, el token se guarda en sessionStorage y se redirige
+       al dashboard.
+
+  DÓNDE VAN LAS CLAVES:
+    ─ ENTRA_CLIENT_ID  →  archivo .env  →  variable de entorno del servidor
+    ─ ENTRA_TENANT_ID  →  archivo .env  →  variable de entorno del servidor
+    El frontend NUNCA debe tener las claves escritas directamente aquí.
+    Las obtiene dinámicamente desde el endpoint /api/v1/auth/config.
+
+  DEPENDENCIAS EXTERNAS (se cargan desde CDN, no se instala nada):
+    ─ Tailwind CSS  → estilos rápidos sin necesidad de compilar
+    ─ MSAL Browser  → librería oficial de Microsoft para login con Entra ID
+    ─ Inter (Google Fonts) → tipografía corporativa
+-->
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Título que aparece en la pestaña del navegador -->
+    <title>Acceso Institucional | PluriOne LegalTech</title>
+
+    <!-- Optimización: pre-conectar a los dominios que se usarán para reducir latencia -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://alcdn.msauth.net" crossorigin>
+    <link rel="preconnect" href="https://login.microsoftonline.com" crossorigin>
+    <link rel="preconnect" href="https://login.live.com" crossorigin>
+
+    <!-- Tailwind CSS: framework de utilidades CSS (sin instalación, desde CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!--
+      MSAL Browser: librería OFICIAL de Microsoft para autenticación con Entra ID.
+      Alojada localmente en /static/js/msal-browser.min.js para garantizar alta disponibilidad y cero fallos 404.
+    -->
+    <script src="/static/js/msal-browser.min.js"></script>
+
+    <!--
+      auth.js: lógica de autenticación conectada a Microsoft Entra ID.
+    -->
+    <script src="/static/js/auth.js?v=2.8.0" defer></script>
+
+    <!-- Fuente Inter desde Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Aplicar la fuente Inter a toda la página */
+        body { font-family: 'Inter', sans-serif; }
+
+        /*
+          Animación de fondo: gradiente suave que se mueve lentamente.
+          Solo visual, no afecta funcionalidad.
+        */
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        .animated-bg {
+            background: linear-gradient(-45deg, #0f172a, #1e293b, #0f172a, #162032);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+    </style>
+</head>
+
+<body class="animated-bg text-slate-100 min-h-screen flex flex-col">
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         BARRA SUPERIOR: Logo PluriOne + indicador de SSO activo
+         ═══════════════════════════════════════════════════════════════ -->
+    <header class="border-b border-slate-800/60 bg-slate-950/70 backdrop-blur-md px-6 py-4 flex items-center justify-between">
+
+        <!-- Logo e identidad de PluriOne -->
+        <div class="flex items-center gap-3">
+            <!--
+              Ícono de la aplicación: cuadrado con el ícono de balanza jurídica.
+              En producción este div puede reemplazarse por un <img> con el logo real de PluriOne.
+            -->
+            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-lg shadow-blue-700/30 text-white font-bold text-sm">
+                ⚖️
+            </div>
+            <div>
+                <!-- Nombre principal: PluriOne (no LexFlow) -->
+                <h1 class="font-bold text-base text-white tracking-tight">PluriOne</h1>
+                <!-- Subtítulo del sistema -->
+                <p class="text-xs text-slate-400">Workflow de Revisión Jurídica</p>
+            </div>
+        </div>
+
+        <!-- Indicador visual de que el sistema usa SSO de Microsoft -->
+        <div class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <!-- Punto verde pulsante = sistema activo -->
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                Microsoft Entra ID SSO
+            </span>
+        </div>
+    </header>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         CONTENIDO PRINCIPAL: Tarjeta de login centrada en la pantalla
+         ═══════════════════════════════════════════════════════════════ -->
+    <main class="flex-1 flex items-center justify-center p-6">
+        <div class="w-full max-w-md">
+
+            <!-- Tarjeta principal de login -->
+            <div id="login-card" class="bg-slate-950/80 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+
+                <!--
+                  Efectos de luz de fondo (puramente decorativos, no afectan funcionalidad).
+                  pointer-events-none = el mouse los ignora completamente.
+                -->
+                <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-600/15 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none"></div>
+
+                <!-- Encabezado de la tarjeta: ícono + título -->
+                <div class="text-center mb-8 relative">
+                    <!-- Ícono de candado: representa seguridad de acceso -->
+                    <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-900 border border-slate-700/50 mb-4 shadow-inner">
+                        <svg class="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </div>
+                    <h2 class="text-2xl font-bold text-white tracking-tight">Acceso Institucional</h2>
+                    <p class="text-slate-400 text-sm mt-1.5 leading-relaxed">
+                        Ingreso exclusivo mediante cuenta corporativa de PluriOne S.A. de C.V.
+                    </p>
+                </div>
+
+                <!-- ─────────────────────────────────────────────────────────
+                     ALERTAS DINÁMICAS
+                     Estas tres secciones son invisibles por defecto (class="hidden").
+                     auth.js las muestra/oculta según el resultado de la autenticación.
+                     ───────────────────────────────────────────────────────── -->
+
+                <!--
+                  Alerta INFORMATIVA (amarilla): se muestra cuando ENTRA_CLIENT_ID no está
+                  configurado en el servidor (.env vacío). Indica al admin que debe configurarlo.
+                -->
+                <div id="status-info" class="mb-4 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 leading-relaxed hidden">
+                    <div class="flex items-start gap-2.5">
+                        <svg class="w-4 h-4 text-amber-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <!-- El texto se inyecta desde auth.js con showInfo("mensaje") -->
+                        <span id="info-text">Configuración pendiente.</span>
+                    </div>
+                </div>
+
+                <!-- Alerta de ÉXITO (verde): se muestra cuando la autenticación fue correcta -->
+                <div id="status-success" class="mb-4 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 leading-relaxed hidden">
+                    <div class="flex items-center gap-2.5">
+                        <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <!-- El texto se inyecta desde auth.js con showSuccess("mensaje") -->
+                        <span id="success-text">Identidad verificada. Conectando...</span>
+                    </div>
+                </div>
+
+                <!-- Alerta de ERROR (roja): se muestra cuando algo falla en el login -->
+                <div id="status-error" class="mb-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 leading-relaxed hidden">
+                    <div class="flex items-start gap-2.5">
+                        <svg class="w-4 h-4 text-rose-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <!-- El texto se inyecta desde auth.js con showError("mensaje") -->
+                        <span id="error-text">No fue posible completar la autenticación.</span>
+                    </div>
+                </div>
+
+                <!-- ─────────────────────────────────────────────────────────
+                     BOTÓN PRINCIPAL DE LOGIN CON MICROSOFT
+                     ─────────────────────────────────────────────────────────
+                     Este es el ÚNICO botón de acceso. No hay formularios de
+                     usuario/contraseña ni botones de demo.
+
+                     Estados del botón (manejados por auth.js):
+                       - Normal:   logo Microsoft visible, "Iniciar sesión con Microsoft"
+                       - Cargando: spinner visible, logo oculto, texto cambia
+                       - Desactivado (disabled): fondo gris, cuando Entra ID no está configurado
+                -->
+                <button
+                    id="btn-login"
+                    type="button"
+                    class="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 active:bg-slate-100
+                           disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed
+                           text-slate-900 font-semibold px-5 py-3.5 rounded-xl
+                           transition-all duration-200 shadow-lg shadow-white/5">
+
+                    <!-- Logo de Microsoft (cuadrados de colores oficiales) -->
+                    <svg id="ms-logo" class="w-5 h-5 shrink-0" viewBox="0 0 23 23" fill="none">
+                        <path fill="#f35325" d="M1 1h10v10H1z"/>   <!-- Rojo: Office -->
+                        <path fill="#81bc06" d="M12 1h10v10H12z"/>  <!-- Verde: Xbox -->
+                        <path fill="#05a6f0" d="M1 12h10v10H1z"/>   <!-- Azul: Teams -->
+                        <path fill="#ffba08" d="M12 12h10v10H12z"/> <!-- Amarillo: Outlook -->
+                    </svg>
+
+                    <!-- Spinner de carga (oculto por defecto, auth.js lo muestra mientras procesa) -->
+                    <svg id="btn-spinner" class="w-5 h-5 animate-spin text-slate-400 hidden" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                    </svg>
+
+                    <!-- Texto del botón (auth.js lo cambia durante el proceso) -->
+                    <span id="btn-label">Iniciar sesión con Microsoft</span>
+                </button>
+
+
+
+                <!-- Aviso legal de seguridad -->
+                <div class="mt-6 pt-5 border-t border-slate-800/60 text-center">
+                    <p class="text-xs text-slate-500 leading-relaxed">
+                        🔒 Acceso protegido por MFA y directivas de acceso condicional de
+                        <span class="text-slate-400 font-medium">Microsoft Entra ID</span>.
+                        Compatible con tu organización y cuentas corporativas de otros inquilinos (Multi-Tenant).
+                    </p>
+                </div>
+            </div>
+
+            <!-- Información adicional debajo de la tarjeta -->
+            <p class="text-center text-xs text-slate-600 mt-4">
+                ¿Problemas para acceder? Contacta al
+                <span class="text-slate-500">Administrador de TI</span> de PluriOne.
+            </p>
+        </div>
+    </main>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         PIE DE PÁGINA
+         ═══════════════════════════════════════════════════════════════ -->
+    <footer class="border-t border-slate-800/60 py-4 px-6 text-center text-xs text-slate-600">
+        Plataforma de Revisión Jurídica &copy; 2026 &bull;
+        <span class="text-slate-500 font-medium">PluriOne S.A. de C.V.</span> &bull;
+        Powered by Microsoft Entra ID
+    </footer>
+
+</body>
+</html>

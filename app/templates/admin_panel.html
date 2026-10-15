@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{#
+  admin_panel.html — Pantalla 12: Panel administrativo
+  ──────────────────────────────────────────────────────
+  Rol: ADMINISTRADOR_PLATAFORMA únicamente
+  Muestra: KPIs globales, accesos rápidos y configuración del workflow.
+  Para gestión detallada de tablas ver /admin (SQLAdmin — equivalente al admin de Django).
+#}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Panel administrativo</h1>
+    <p>Administra usuarios, roles, permisos, workflows y la configuración general del sistema.</p>
+  </div>
+  <!-- Enlace al panel SQLAdmin (gestión directa de tablas) -->
+  <a href="/admin" target="_blank" class="btn btn-outline">
+    <i data-lucide="database" class="icon" style="width:16px;height:16px"></i>
+    Abrir panel de base de datos
+  </a>
+</div>
+
+<!-- KPIs globales -->
+<div class="kpi-grid" id="kpi-admin">
+  <div class="kpi-card"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label">Solicitudes totales</div></div>
+  <div class="kpi-card"><div class="kpi-value" id="kpi-activas">—</div><div class="kpi-label">En proceso</div></div>
+  <div class="kpi-card"><div class="kpi-value" id="kpi-firmadas">—</div><div class="kpi-label">Firmadas</div></div>
+  <div class="kpi-card"><div class="kpi-value" id="kpi-estado">🟢</div><div class="kpi-label">Estado del sistema</div></div>
+</div>
+
+<div class="grid-2">
+
+  <!-- Gestión de usuarios y roles -->
+  <div class="card card-pad">
+    <div class="section-title">Gestión de usuarios y roles</div>
+    <p class="muted" style="margin-top:0;font-size:.87rem;line-height:1.6;">
+      Registra, desactiva y cambia roles de los funcionarios de PluriOne.
+      La autenticación se gestiona en Microsoft Entra ID; aquí se asignan los roles del sistema.
+    </p>
+    <a href="/api/v1/app/usuarios" class="btn btn-primary">
+      <i data-lucide="users" class="icon" style="width:16px;height:16px"></i> Administrar usuarios
+    </a>
+  </div>
+
+  <!-- Reglas del workflow -->
+  <div class="card card-pad">
+    <div class="section-title">Reglas del workflow</div>
+    <div class="flex-col gap-3">
+      <div class="flex justify-between">
+        <span class="muted">Asignación de revisores</span>
+        <strong>Automática (menor carga)</strong>
+      </div>
+      <div class="flex justify-between">
+        <span class="muted">Tiempo máximo de revisión</span>
+        <strong>5 días hábiles</strong>
+      </div>
+      <div class="flex justify-between">
+        <span class="muted">Tiempo máximo de aprobación</span>
+        <strong>3 días hábiles</strong>
+      </div>
+      <div class="flex justify-between">
+        <span class="muted">Reasignación manual</span>
+        <strong>Disponible</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Catálogos -->
+  <div class="card card-pad">
+    <div class="section-title">Catálogos del sistema</div>
+    <div class="flex-col gap-3">
+      <div class="flex justify-between">
+        <span class="muted">Tipos de documento</span>
+        <strong>Contrato, Convenio, Política</strong>
+      </div>
+      <div class="flex justify-between">
+        <span class="muted">Prioridades</span>
+        <strong>Baja, Normal, Alta, Urgente</strong>
+      </div>
+      <div class="flex justify-between">
+        <span class="muted">Roles del sistema</span>
+        <strong>5 roles internos</strong>
+      </div>
+    </div>
+    <!-- Panel SQLAdmin para editar catálogos directamente en la BD -->
+    <a href="/admin" target="_blank" class="btn btn-outline btn-sm" style="margin-top:1rem;">
+      <i data-lucide="settings-2" class="icon" style="width:15px;height:15px"></i> Editar en SQLAdmin
+    </a>
+  </div>
+
+    <!-- Accesos rápidos -->
+  <div class="card card-pad">
+    <div class="section-title">Accesos rápidos</div>
+    <div class="flex-col gap-2">
+      <a href="/api/v1/app/trazabilidad" class="btn btn-outline btn-block" style="justify-content:flex-start;">
+        <i data-lucide="history" class="icon" style="width:16px;height:16px"></i> Trazabilidad completa
+      </a>
+      <a href="/api/v1/app/solicitudes" class="btn btn-outline btn-block" style="justify-content:flex-start;">
+        <i data-lucide="folder-open" class="icon" style="width:16px;height:16px"></i> Todas las solicitudes
+      </a>
+      <a href="/api/v1/app/tareas" class="btn btn-outline btn-block" style="justify-content:flex-start;">
+        <i data-lucide="list-checks" class="icon" style="width:16px;height:16px"></i> Bandeja de trabajo
+      </a>
+      <a href="/admin" target="_blank" class="btn btn-outline btn-block" style="justify-content:flex-start;">
+        <i data-lucide="database" class="icon" style="width:16px;height:16px"></i> Panel de BD (SQLAdmin)
+      </a>
+    </div>
+  </div>
+
+  <!-- Integración Power BI y Analítica (HU-02, HU-15, HU-16) -->
+  <div class="card card-pad" style="grid-column: 1 / -1;">
+    <div class="section-title flex items-center justify-between">
+      <span>📊 Integración de Business Intelligence (Power BI)</span>
+      <span class="badge" style="background:rgba(245, 158, 11, 0.1);color:#d97706;border:1px solid rgba(245, 158, 11, 0.2);">Power BI Desktop / Service</span>
+    </div>
+    <p class="muted" style="margin-top:0.5rem;font-size:.87rem;line-height:1.6;">
+      Conecta Power BI directamente a la plataforma para auditar cuellos de botella en la revisión jurídica,
+      tiempos de ciclo de contratos y tasa de cumplimiento de SLAs.
+    </p>
+    <div class="flex gap-3" style="margin-top:1rem;flex-wrap:wrap;">
+      <a href="/api/v1/analytics/powerbi-html" target="_blank" class="btn btn-primary">
+        <i data-lucide="table" class="icon" style="width:16px;height:16px"></i> Feed HTML para Power BI Web (Sin CSV ni JSON crudo)
+      </a>
+      <a href="/api/v1/analytics/export-csv" class="btn btn-outline">
+        <i data-lucide="file-spreadsheet" class="icon" style="width:16px;height:16px"></i> Descargar Dataset CSV
+      </a>
+      <a href="/api/v1/analytics/powerbi-feed" target="_blank" class="btn btn-outline">
+        <i data-lucide="activity" class="icon" style="width:16px;height:16px"></i> Endpoint Feed REST JSON
+      </a>
+      <a href="/api/v1/analytics/bottlenecks" target="_blank" class="btn btn-outline">
+        <i data-lucide="alert-triangle" class="icon" style="width:16px;height:16px"></i> Reporte de Cuellos de Botella
+      </a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/*
+ * admin_panel.js (inline) — Carga los KPIs globales del sistema.
+ */
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const todas = await apiGet('/api/v1/solicitudes/') || [];
+    document.getElementById('kpi-total').textContent   = todas.length;
+    document.getElementById('kpi-activas').textContent =
+      todas.filter(s => ['EN_REVISION','OBSERVADO','EN_APROBACION'].includes(s.estado)).length;
+    document.getElementById('kpi-firmadas').textContent =
+      todas.filter(s => s.estado === 'FIRMADO').length;
+  } catch(e) { console.warn('Error cargando KPIs admin:', e); }
+});
+</script>
+{% endblock %}

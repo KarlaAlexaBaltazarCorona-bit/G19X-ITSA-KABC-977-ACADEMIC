@@ -1,0 +1,312 @@
+{#
+  base.html — Plantilla base de la que heredan todas las páginas internas de PluriOne LegalTech.
+  ─────────────────────────────────────────────────────────────────────────────────────────────
+  ESTRUCTURA:
+    ┌─────────────────────────────────────────────────────┐
+    │  .app-shell                                          │
+    │  ├── <aside class="sidebar">  ← menú lateral fijo   │
+    │  └── .main                                          │
+    │       ├── <header class="topbar"> ← barra superior  │
+    │       └── <main class="content">  ← contenido       │
+    │             [block content]   ← cada página llena    │
+    └─────────────────────────────────────────────────────┘
+
+  VARIABLES DE CONTEXTO (vienen de frontend.py → _ctx()):
+    - current_user:  dict con id, nombre, correo, rol
+    - current_role:  string del rol activo
+    - page_title:    título de la pestaña y topbar
+    - menu_items:    lista de ítems ya filtrados por el rol del usuario
+
+  DEPENDENCIAS EXTERNAS (CDN, sin instalación):
+    - Lucide Icons: íconos SVG ligeros (https://lucide.dev)
+    - Inter + Lora: tipografía (Google Fonts)
+    - style.css:    sistema de diseño del proyecto (app/static/css/style.css)
+#}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Título de la pestaña del navegador: página actual + sistema -->
+  <title>{% block title %}{{ page_title }}{% endblock %} · PluriOne LegalTech</title>
+
+  <!-- Google Fonts: Inter (UI) y Lora (títulos) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Sistema de diseño del proyecto (paleta navy + dorado) -->
+  <link rel="stylesheet" href="/static/css/style.css">
+
+  <!-- Lucide: librería de íconos SVG con componente de auto-render -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js" defer></script>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════
+     SHELL PRINCIPAL: sidebar + área principal
+     ════════════════════════════════════════════════════════════════ -->
+<div class="app-shell">
+
+  <!-- ── SIDEBAR: Navegación lateral ─────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Logo e identidad PluriOne -->
+    <div class="sidebar-brand">
+      <div class="brand-mark">
+        <!-- Ícono de balanza: símbolo jurídico -->
+        <i data-lucide="scale" style="width:18px;height:18px"></i>
+      </div>
+      <div>
+        <div class="brand-name">PluriOne</div>
+        <div class="brand-sub">Revisión jurídica</div>
+      </div>
+    </div>
+
+    <!-- Chip del usuario activo: muestra nombre y rol -->
+    {% if current_user %}
+    <div class="sidebar-role">
+      <strong>{{ current_user.nombre }}</strong>
+      <!-- Mostrar el rol en forma legible -->
+      {{ current_role.replace("_", " ").title() }}
+    </div>
+    {% endif %}
+
+    <!-- Ítems de navegación: solo los que el rol del usuario puede ver
+         (filtrado en frontend.py → _ctx() → MENU_ITEMS) -->
+    <ul class="nav">
+      {% for item in menu_items %}
+      <li>
+        <a href="{{ item.url }}"
+           class="{{ 'active' if request.url.path == item.url else '' }}">
+          <!-- Ícono Lucide identificado por nombre -->
+          <i data-lucide="{{ item.icon }}" class="icon"></i>
+          <span>{{ item.label }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <!-- Pie de sidebar: solo cerrar sesión.
+         logout.js limpiará el token del sessionStorage y redirigirá a /login -->
+    <div class="sidebar-foot">
+      <a href="#" onclick="cerrarSesion(); return false;">
+        <i data-lucide="log-out" class="icon"></i>
+        <span>Cerrar sesión</span>
+      </a>
+    </div>
+  </aside>
+  <!-- ── Fin sidebar ── -->
+
+  <!-- ── COLUMNA PRINCIPAL ──────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- Barra superior fija -->
+    <header class="topbar">
+      <div class="flex items-center gap-3">
+        <!-- Botón hamburguesa para móvil (oculto en escritorio, visible ≤760px) -->
+        <button class="icon-btn" id="menuToggle" style="display:none"
+                onclick="document.getElementById('sidebar').classList.toggle('open')">
+          <i data-lucide="menu" class="icon"></i>
+        </button>
+        <!-- Título de la página actual -->
+        <div class="topbar-title">{% block page_title_block %}{{ page_title }}{% endblock %}</div>
+      </div>
+
+      <div class="topbar-actions">
+        <!-- Campana de notificaciones con dropdown -->
+        <div class="dropdown" id="notifDropdown">
+          <button class="icon-btn"
+                  onclick="document.getElementById('notifDropdown').classList.toggle('open')">
+            <i data-lucide="bell" class="icon"></i>
+            <!-- Punto rojo: se muestra si hay notificaciones no leídas
+                 (el JS en cada página puede actualizar esto desde la API) -->
+            <span class="dot" id="notif-dot" style="display:none"></span>
+          </button>
+          <!-- Panel de notificaciones (se llena via AJAX en cada página) -->
+          <div class="dropdown-panel">
+            <h4>Notificaciones</h4>
+            <div id="notif-list">
+              <div class="notif-item">
+                <div class="notif-detail">Cargando notificaciones...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Avatar de iniciales del usuario -->
+        {% if current_user %}
+        <div class="avatar" title="{{ current_user.nombre }}">
+          <!-- Tomar la primera letra de nombre y apellido -->
+          {{ current_user.nombre[0] | upper }}
+        </div>
+        {% endif %}
+      </div>
+    </header>
+    <!-- Fin topbar -->
+
+    <!-- Área de contenido: cada página llena este bloque -->
+    <main class="content">
+      {# Bloque de mensajes flash (éxito/error de operaciones) #}
+      {% if get_flashed_messages is defined %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">
+            <i data-lucide="{{ 'check-circle-2' if category == 'success' else 'alert-circle' }}"
+               class="icon"></i>
+            <span>{{ message }}</span>
+          </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% endif %}
+
+      {% block content %}{% endblock %}
+    </main>
+
+  </div>
+  <!-- Fin columna principal -->
+
+</div>
+<!-- Fin .app-shell -->
+
+<!-- ════════════════════════════════════════════════════════════════
+     SCRIPTS GLOBALES
+     ════════════════════════════════════════════════════════════════ -->
+<script>
+  /*
+   * Inicializar íconos Lucide una vez que el DOM esté cargado.
+   * Lucide escanea los elementos con data-lucide="nombre" y los
+   * convierte en SVGs inline automáticamente.
+   */
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.lucide) lucide.createIcons();
+    mostrarMenuToggle();
+    cargarNotificaciones();
+  });
+
+  /*
+   * Cerrar el dropdown de notificaciones al hacer clic fuera de él.
+   */
+  document.addEventListener('click', (e) => {
+    const dd = document.getElementById('notifDropdown');
+    if (dd && !dd.contains(e.target)) dd.classList.remove('open');
+  });
+
+  /*
+   * Mostrar el botón hamburguesa en pantallas pequeñas.
+   * Se detecta al cargar la página; en escritorio queda oculto.
+   */
+  function mostrarMenuToggle() {
+    if (window.innerWidth <= 760) {
+      const btn = document.getElementById('menuToggle');
+      if (btn) btn.style.display = 'flex';
+    }
+  }
+
+  /*
+   * cerrarSesion(): limpia el token del sessionStorage y redirige al login.
+   * El token se guardó ahí en auth.js tras el login exitoso con Entra ID.
+   */
+  async function cerrarSesion() {
+    sessionStorage.removeItem('plurione_auth_token');
+    document.cookie = "plurione_auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    try {
+      await fetch('/api/v1/auth/logout', { method: 'POST' });
+    } catch (_) {}
+    window.location.href = '/login';
+  }
+
+  function getClientSessionId() {
+    let sid = sessionStorage.getItem('plurione_session_id');
+    if (!sid) {
+      sid = 'collab-' + Math.random().toString(36).substring(2, 12) + '-' + Date.now().toString(36);
+      sessionStorage.setItem('plurione_session_id', sid);
+    }
+    return sid;
+  }
+
+  /*
+   * getAuthHeaders(): retorna los headers necesarios para llamar a la API.
+   * Todas las peticiones AJAX desde el frontend los necesitan.
+   */
+  function getAuthHeaders() {
+    const token = sessionStorage.getItem('plurione_auth_token') || '';
+    const apiKey = sessionStorage.getItem('plurione_api_key') || '';
+    const headers = {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      'X-Client-Session-Id': getClientSessionId(),
+    };
+    if (apiKey) {
+      headers['X-API-KEY'] = apiKey;
+    }
+    return headers;
+  }
+
+  /*
+   * cargarNotificaciones(): llama a /api/v1/notifications/pending y
+   * actualiza el panel de notificaciones con los resultados.
+   * Si hay notificaciones no leídas, muestra el punto rojo en la campana.
+   */
+  async function cargarNotificaciones() {
+    try {
+      const res = await fetch('/api/v1/notifications/pending', { headers: getAuthHeaders() });
+      if (!res.ok) return;
+      const notifs = await res.json();
+      const lista = document.getElementById('notif-list');
+      const dot   = document.getElementById('notif-dot');
+      if (!lista) return;
+
+      if (notifs.length === 0) {
+        lista.innerHTML = '<div class="notif-item"><div class="notif-detail">No tienes notificaciones nuevas.</div></div>';
+        return;
+      }
+
+      /* Si hay al menos una notificación, mostrar el punto rojo */
+      if (dot) dot.style.display = 'block';
+
+      lista.innerHTML = notifs.slice(0, 5).map(n => `
+        <div class="notif-item">
+          <div class="notif-dot"></div>
+          <div>
+            <div class="notif-title">${n.titulo}</div>
+            <div class="notif-detail">${n.detalle || ''}</div>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      /* Error silencioso: las notificaciones no son críticas */
+      console.warn('[PluriOne] No se pudieron cargar las notificaciones:', e);
+    }
+  }
+
+  /*
+   * apiGet(url): helper para hacer peticiones GET autenticadas a la API.
+   * Retorna el JSON parseado o lanza un error.
+   */
+  async function apiGet(url) {
+    const res = await fetch(url, { headers: getAuthHeaders() });
+    if (res.status === 401) { cerrarSesion(); return null; }
+    if (!res.ok) throw new Error(`Error ${res.status} en ${url}`);
+    return res.json();
+  }
+
+  /*
+   * apiPost(url, data): helper para hacer peticiones POST autenticadas.
+   */
+  async function apiPost(url, data = {}) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (res.status === 401) { cerrarSesion(); return null; }
+    return res.json();
+  }
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

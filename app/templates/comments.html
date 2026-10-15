@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{#
+  comments.html — Pantalla 7: Comentarios colaborativos
+  ───────────────────────────────────────────────────────
+  Roles: REVISOR_JURIDICO, APROBADOR_JURIDICO, ADMINISTRADOR_PLATAFORMA
+  Datos: GET /api/v1/reviews/{id}/comments
+         POST /api/v1/reviews/{id}/comments
+#}
+{% block content %}
+<div class="flex items-center gap-2" style="margin-bottom:1rem;font-size:.83rem;color:var(--ink-soft)">
+  <a href="/api/v1/app/solicitudes/{{ solicitud_id }}" class="flex items-center gap-1 cell-link">
+    <i data-lucide="arrow-left" class="icon" style="width:14px;height:14px"></i> Volver al detalle
+  </a>
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 id="com-titulo">Comentarios colaborativos</h1>
+    <p>Observaciones y respuestas sobre esta solicitud.</p>
+  </div>
+</div>
+
+<!-- Hilo de comentarios -->
+<div class="card">
+  <div class="card-header"><h3>Hilo de comentarios</h3></div>
+  <div class="card-body" style="padding-top:.4rem;" id="lista-comentarios">
+    <div class="empty-state">Cargando comentarios...</div>
+  </div>
+</div>
+
+<!-- Formulario de nuevo comentario -->
+<form class="card card-pad" style="margin-top:1.2rem;" id="form-comentario">
+  <div class="field">
+    <label for="contenido">Agregar comentario u observación</label>
+    <textarea class="input" id="contenido" name="contenido" required
+              placeholder="Escribe tu observación, corrección o respuesta…"></textarea>
+  </div>
+  <div id="alerta-com" class="flash" style="display:none"></div>
+  <div class="flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      <i data-lucide="send" class="icon" style="width:16px;height:16px"></i> Publicar
+    </button>
+    <button type="reset" class="btn btn-outline">Limpiar</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SOL_ID = "{{ solicitud_id }}";
+const NOMBRE = "{{ current_user.nombre }}";
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await cargarSolicitud();
+  await cargarComentarios();
+});
+
+async function cargarSolicitud() {
+  try {
+    const s = await apiGet(`/api/v1/solicitudes/${SOL_ID}`);
+    document.getElementById('com-titulo').textContent = s.titulo;
+  } catch(e){}
+}
+
+async function cargarComentarios() {
+  const lista = document.getElementById('lista-comentarios');
+  try {
+    const data = await apiGet(`/api/v1/reviews/${SOL_ID}/comments`);
+    if (!data || data.length === 0) {
+      lista.innerHTML = '<p class="muted" style="padding:1rem 0">Aún no hay comentarios en esta solicitud.</p>';
+      return;
+    }
+    lista.innerHTML = data.map(c => `
+      <div class="comment">
+        <div class="avatar">${c.user_id?.slice(0,1)?.toUpperCase()||'?'}</div>
+        <div class="comment-body">
+          <div class="comment-head">
+            <strong>Usuario ${c.user_id?.slice(0,6)}...</strong>
+          </div>
+          <div class="comment-text">${c.contenido}</div>
+          ${c.resuelto ? '<div class="comment-time" style="color:var(--green-600)">✓ Resuelto</div>' : ''}
+          <div class="comment-time">${(c.creado_at||'').slice(0,16).replace('T',' ')}</div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    lista.innerHTML = '<p class="muted">Error al cargar comentarios.</p>';
+  }
+}
+
+document.getElementById('form-comentario').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const contenido = document.getElementById('contenido').value.trim();
+  if (!contenido) return;
+  try {
+    const token = sessionStorage.getItem('plurione_auth_token') || '';
+    const res = await fetch(`/api/v1/reviews/${SOL_ID}/comments`, {
+      method:'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ contenido }),
+    });
+    const al = document.getElementById('alerta-com');
+    al.style.display = 'flex';
+    if (res.ok) {
+      al.className='flash flash-success'; al.textContent='Comentario publicado.';
+      document.getElementById('contenido').value = '';
+      await cargarComentarios();
+    } else {
+      al.className='flash flash-error'; al.textContent='Error al publicar el comentario.';
+    }
+  } catch(err) { console.error(err); }
+});
+</script>
+{% endblock %}

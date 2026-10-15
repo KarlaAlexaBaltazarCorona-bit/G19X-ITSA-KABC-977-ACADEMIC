@@ -1,0 +1,7 @@
+[allowlist]
+description = "Archivos de desarrollo local y fixtures de prueba ignorados"
+paths = [
+    '''^\.env$''',
+    '''^\.venv/''',
+    '''^tests/'''
+]

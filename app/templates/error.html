@@ -1,0 +1,87 @@
+<!doctype html>
+<!--
+  error.html — Página de error genérica (403 / 404 / 500)
+  ─────────────────────────────────────────────────────────
+  No extiende base.html porque puede mostrarse antes de autenticar
+  (por ejemplo, un 404 al intentar cargar una URL directamente).
+  Usa el mismo sistema de diseño (style.css) y branding PluriOne.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Error {{ code }} · PluriOne LegalTech</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    /* Centrar verticalmente el contenido de error */
+    .error-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--cream);
+    }
+    .error-card { text-align: center; max-width: 400px; padding: 1rem; }
+    .error-code {
+      font-family: "Lora", serif;
+      font-size: 5rem;
+      color: var(--navy-900);
+      line-height: 1;
+      margin-bottom: .5rem;
+    }
+    .error-icon {
+      font-size: 2.5rem;
+      margin-bottom: .8rem;
+    }
+  </style>
+</head>
+<body>
+<div class="error-wrap">
+  <div class="error-card">
+
+    <!-- Ícono según tipo de error -->
+    <div class="error-icon">
+      {% if code == 403 %}🔒
+      {% elif code == 404 %}🔍
+      {% else %}⚠️
+      {% endif %}
+    </div>
+
+    <!-- Código HTTP grande -->
+    <div class="error-code">{{ code }}</div>
+
+    <!-- Título del error -->
+    <h2 class="font-serif" style="margin:.5rem 0 .8rem;">
+      {% if code == 403 %}Acceso restringido
+      {% elif code == 404 %}No encontrado
+      {% elif code == 500 %}Error del servidor
+      {% else %}Algo salió mal
+      {% endif %}
+    </h2>
+
+    <!-- Mensaje descriptivo -->
+    <p class="muted" style="line-height:1.6;margin-bottom:1.6rem;">
+      {{ message }}
+    </p>
+
+    <!-- Acciones disponibles -->
+    <div style="display:flex; flex-direction:column; gap:0.75rem; align-items:center; margin-top:1.5rem;">
+      <a href="/logout" class="btn btn-primary" style="background:#0f172a; color:#ffffff; padding:0.65rem 1.4rem; border-radius:0.5rem; text-decoration:none; font-weight:600; font-size:0.875rem; display:inline-block;">
+        Ir a la pantalla de inicio de sesión
+      </a>
+      <a href="/api/v1/app/dashboard" class="btn btn-outline" style="color:#0f172a; border:1px solid #cbd5e1; padding:0.5rem 1.2rem; border-radius:0.5rem; text-decoration:none; font-size:0.875rem; display:inline-block;">
+        Reintentar cargar Dashboard
+      </a>
+    </div>
+
+    <!-- Branding mínimo en el pie -->
+    <div style="margin-top:2rem;font-size:.75rem;color:var(--ink-faint);">
+      PluriOne LegalTech &bull; Plataforma de Revisión Jurídica
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

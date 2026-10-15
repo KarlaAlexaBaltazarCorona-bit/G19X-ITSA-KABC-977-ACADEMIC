@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{#
+  new_document.html — Pantalla 5: Nueva solicitud / Nuevo documento
+  ──────────────────────────────────────────────────────────────────
+  Roles: REVISOR_JURIDICO, APROBADOR_JURIDICO, ADMINISTRADOR_PLATAFORMA
+  POST multipart: /api/v1/solicitudes/ (titulo, tipo_documento, archivo, descripcion)
+  Al enviar exitosamente: redirige a /app/solicitudes
+#}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Nueva solicitud</h1>
+    <p>Sube un documento e inicia un nuevo proceso de revisión jurídica.</p>
+  </div>
+</div>
+
+<div class="card content-narrow">
+  <div class="card-body">
+    <!-- Alerta de éxito/error (oculta por defecto) -->
+    <div id="alerta" class="flash" style="display:none"></div>
+
+    <form id="form-nueva" enctype="multipart/form-data">
+      <!-- Tipo de documento -->
+      <div class="field">
+        <label for="tipo_documento">Tipo de documento *</label>
+        <select class="input" id="tipo_documento" name="tipo_documento" required>
+          <option value="" disabled selected>Selecciona un tipo</option>
+          <option value="contrato">Contrato</option>
+          <option value="convenio">Convenio</option>
+          <option value="politica">Política</option>
+        </select>
+      </div>
+
+      <!-- Título de la solicitud -->
+      <div class="field">
+        <label for="titulo">Título de la solicitud *</label>
+        <input class="input" type="text" id="titulo" name="titulo" required
+               placeholder="Ej. Contrato de suministro — Insumos Polímeros S.A.">
+      </div>
+
+      <!-- Descripción -->
+      <div class="field">
+        <label for="descripcion">Descripción (opcional)</label>
+        <textarea class="input" id="descripcion" name="descripcion"
+                  placeholder="Contexto adicional sobre el documento…"></textarea>
+      </div>
+
+      <!-- Prioridad -->
+      <div class="field">
+        <label for="prioridad">Prioridad</label>
+        <select class="input" id="prioridad" name="prioridad">
+          <option value="NORMAL" selected>Normal</option>
+          <option value="BAJA">Baja</option>
+          <option value="ALTA">Alta</option>
+          <option value="URGENTE">Urgente</option>
+        </select>
+      </div>
+
+      <!-- Fecha límite -->
+      <div class="field">
+        <label for="fecha_limite">Fecha límite / Plazo requerido (opcional)</label>
+        <input class="input" type="date" id="fecha_limite" name="fecha_limite">
+      </div>
+
+      <!-- Archivo -->
+      <div class="field">
+        <label>Documento *</label>
+        <!--
+          Zona de arrastrar y soltar el archivo.
+          Al hacer clic en "Elegir archivo" se abre el selector nativo.
+          El archivo se envía como multipart en el POST a la API.
+        -->
+        <div id="drop-zone" style="border:1.5px dashed var(--line);border-radius:12px;padding:1.8rem;text-align:center;background:#fcfbf9;cursor:pointer;"
+             onclick="document.getElementById('archivo').click()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--navy-600)'"
+             ondragleave="this.style.borderColor='var(--line)'"
+             ondrop="onDrop(event)">
+          <i data-lucide="upload-cloud" class="icon" style="width:26px;height:26px;color:var(--ink-faint);margin-bottom:.5rem"></i>
+          <div style="font-size:.86rem;color:var(--ink-soft);">Arrastra el archivo aquí o</div>
+          <div class="btn btn-outline btn-sm" style="margin-top:.6rem;pointer-events:none">Elegir archivo</div>
+          <div class="help-text">PDF o Word · máx. 10 MB</div>
+          <div id="nombre-archivo" style="margin-top:.5rem;font-size:.82rem;color:var(--navy-700);font-weight:600"></div>
+        </div>
+        <input type="file" id="archivo" name="archivo" accept=".pdf,.doc,.docx" style="display:none"
+               onchange="mostrarNombre(this)">
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="flex gap-2" style="margin-top:1.6rem;flex-wrap:wrap;">
+        <button type="button" class="btn btn-primary" id="btn-submit" onclick="enviarFormulario(true)">
+          <i data-lucide="send" class="icon" style="width:16px;height:16px"></i> Enviar a revisión jurídica
+        </button>
+        <button type="button" class="btn btn-outline" id="btn-borrador" onclick="enviarFormulario(false)">
+          <i data-lucide="save" class="icon" style="width:16px;height:16px"></i> Guardar como borrador
+        </button>
+        <button type="reset" class="btn btn-outline" onclick="document.getElementById('nombre-archivo').textContent=''">Limpiar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/*
+ * new_document.js (inline) — Envía el formulario multipart a la API.
+ * POST /api/v1/solicitudes/?titulo=...&tipo_documento=...&prioridad=...&fecha_limite=...&enviar_a_revision=...
+ */
+async function enviarFormulario(enviarARevision) {
+  const form = document.getElementById('form-nueva');
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
+  }
+
+  const archivo = document.getElementById('archivo').files[0];
+  if (!archivo) {
+    mostrarAlerta('error', 'Debes seleccionar un archivo de documento.');
+    return;
+  }
+
+  const btnActive = enviarARevision ? document.getElementById('btn-submit') : document.getElementById('btn-borrador');
+  const btnOther = enviarARevision ? document.getElementById('btn-borrador') : document.getElementById('btn-submit');
+  btnActive.disabled = true;
+  btnOther.disabled = true;
+  const textoOriginal = btnActive.innerHTML;
+  btnActive.innerHTML = '<i data-lucide="loader-2" class="icon" style="width:16px;height:16px;animation:spin 1s linear infinite"></i> Guardando...';
+  if (window.lucide) lucide.createIcons();
+
+  const fd = new FormData();
+  fd.append('archivo', archivo);
+
+  const queryObj = {
+    titulo: document.getElementById('titulo').value,
+    tipo_documento: document.getElementById('tipo_documento').value,
+    descripcion: document.getElementById('descripcion').value || '',
+    prioridad: document.getElementById('prioridad').value || 'NORMAL',
+    enviar_a_revision: enviarARevision ? 'true' : 'false'
+  };
+
+  const fechaVal = document.getElementById('fecha_limite').value;
+  if (fechaVal) {
+    queryObj.fecha_limite = fechaVal + 'T23:59:59';
+  }
+
+  const params = new URLSearchParams(queryObj);
+
+  try {
+    const token = sessionStorage.getItem('plurione_auth_token') || '';
+    const res = await fetch(`/api/v1/solicitudes/?${params}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        ...(sessionStorage.getItem('plurione_api_key') ? { 'X-API-KEY': sessionStorage.getItem('plurione_api_key') } : {})
+      },
+      body: fd,
+    });
+
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const msg = enviarARevision
+        ? `Solicitud ${data.numero_respuesta || ''} enviada a revisión. Redirigiendo...`
+        : `Solicitud ${data.numero_respuesta || ''} guardada en borrador. Redirigiendo...`;
+      mostrarAlerta('success', msg);
+      setTimeout(() => window.location.href = '/api/v1/app/solicitudes', 1200);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      mostrarAlerta('error', err.detail || 'No se pudo crear la solicitud.');
+      btnActive.disabled = false;
+      btnOther.disabled = false;
+      btnActive.innerHTML = textoOriginal;
+      if (window.lucide) lucide.createIcons();
+    }
+  } catch(err) {
+    mostrarAlerta('error', 'Error de conexión. Verifica tu red e intenta de nuevo.');
+    btnActive.disabled = false;
+    btnOther.disabled = false;
+    btnActive.innerHTML = textoOriginal;
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+function mostrarNombre(input) {
+  const el = document.getElementById('nombre-archivo');
+  el.textContent = input.files[0] ? '📄 ' + input.files[0].name : '';
+}
+
+function onDrop(event) {
+  event.preventDefault();
+  document.getElementById('drop-zone').style.borderColor = 'var(--line)';
+  const file = event.dataTransfer.files[0];
+  if (file) {
+    const input = document.getElementById('archivo');
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    mostrarNombre(input);
+  }
+}
+
+function mostrarAlerta(tipo, msg) {
+  const a = document.getElementById('alerta');
+  a.className = `flash flash-${tipo}`;
+  a.textContent = msg;
+  a.style.display = 'flex';
+}
+
+const s=document.createElement('style');
+s.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
+document.head.appendChild(s);
+</script>
+{% endblock %}

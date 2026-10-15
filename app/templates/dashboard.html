@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import status_badge %}
+
+{#
+  dashboard.html — Pantalla 2: Dashboard / Inicio
+  ────────────────────────────────────────────────
+  Roles con acceso: TODOS (REVISOR_JURIDICO, APROBADOR_JURIDICO, ADMINISTRADOR_PLATAFORMA, AUDITOR)
+  Vista personalizada por rol:
+    - REVISOR / APROBADOR   → mis tareas pendientes + métricas de carga + botón nueva solicitud
+    - ADMINISTRADOR         → KPIs globales + usuarios activos + accesos rápidos + botón nueva solicitud
+    - AUDITOR               → actividad reciente de auditoría
+  Los datos se cargan vía AJAX desde la API al inicio de la página.
+#}
+
+{% block content %}
+<!-- Encabezado de la página -->
+<div class="page-head">
+  <div>
+    <h1 id="greeting">Hola</h1>
+    <p id="greeting-sub">Cargando tu resumen...</p>
+  </div>
+  <!-- El botón "Nueva solicitud" está disponible para Revisores, Aprobadores y Admin -->
+  {% if current_role in ['REVISOR_JURIDICO', 'APROBADOR_JURIDICO', 'ADMINISTRADOR_PLATAFORMA'] %}
+  <a href="/api/v1/app/nueva" class="btn btn-primary">
+    <i data-lucide="file-plus-2" class="icon" style="width:16px;height:16px"></i>
+    Nueva solicitud
+  </a>
+  {% endif %}
+</div>
+
+<!-- KPIs: se llenan via AJAX con los conteos reales de la API -->
+<div class="kpi-grid" id="kpi-grid">
+  <!-- Placeholder mientras carga -->
+  <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">En revisión</div></div>
+  <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">En aprobación</div></div>
+  <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Aprobadas</div></div>
+  <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Con observaciones</div></div>
+  <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Rechazadas</div></div>
+</div>
+
+<!-- Tabla principal: contenido distinto según el rol -->
+<div class="table-wrap" id="main-table-wrap">
+  <div class="card-header">
+    <h3 id="main-table-title">Cargando...</h3>
+    <a id="main-table-link" href="#" class="btn btn-outline btn-sm">Ver todos</a>
+  </div>
+  <div id="main-table-body">
+    <div class="empty-state">
+      <i data-lucide="loader-2" class="icon" style="animation:spin 1s linear infinite"></i>
+      <div>Cargando datos...</div>
+    </div>
+  </div>
+</div>
+
+{% if current_role == 'ADMINISTRADOR_PLATAFORMA' %}
+<!-- Accesos rápidos solo para el Admin -->
+<div class="grid-2" style="margin-top:1.4rem;">
+  <div class="card card-pad">
+    <div class="section-title">Accesos rápidos</div>
+    <div class="flex-col gap-2">
+      <a href="/api/v1/app/admin"    class="btn btn-outline btn-block" style="justify-content:flex-start;">
+        <i data-lucide="settings"    class="icon" style="width:16px;height:16px"></i> Panel administrativo
+      </a>
+      <a href="/api/v1/app/trazabilidad" class="btn btn-outline btn-block" style="justify-content:flex-start;">
+        <i data-lucide="history"     class="icon" style="width:16px;height:16px"></i> Trazabilidad
+      </a>
+      <a href="/api/v1/app/usuarios" class="btn btn-outline btn-block" style="justify-content:flex-start;">
+        <i data-lucide="users"       class="icon" style="width:16px;height:16px"></i> Usuarios y funcionarios
+      </a>
+    </div>
+  </div>
+  <div class="card card-pad" id="usuarios-rapidos">
+    <div class="section-title">Usuarios del sistema</div>
+    <div class="muted" style="font-size:.85rem;">Cargando...</div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+/*
+ * dashboard.js (inline) — Carga los datos del dashboard según el rol del usuario.
+ * Llama a la API REST del backend para obtener solicitudes, KPIs y usuarios.
+ */
+const ROL = "{{ current_role }}";
+const NOMBRE = "{{ current_user.nombre }}";
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Saludo personalizado
+  document.getElementById('greeting').textContent = `Hola, ${NOMBRE.split(' ')[0]}`;
+
+  // Cargar KPIs y tabla según el rol
+  await cargarKPIs();
+  await cargarTabla();
+  if (ROL === 'ADMINISTRADOR_PLATAFORMA') await cargarUsuariosRapidos();
+});
+
+/* Carga los conteos de solicitudes por estado */
+async function cargarKPIs() {
+  try {
+    const data = await apiGet('/api/v1/solicitudes/');
+    if (!data) return;
+    const conteos = {EN_REVISION:0, EN_APROBACION:0, APROBADO:0, OBSERVADO:0, RECHAZADO:0};
+    data.forEach(s => { if (conteos[s.estado] !== undefined) conteos[s.estado]++; });
+
+    const labels = ['En revisión','En aprobación','Aprobadas','Con observaciones','Rechazadas'];
+    const keys   = ['EN_REVISION','EN_APROBACION','APROBADO','OBSERVADO','RECHAZADO'];
+    document.getElementById('kpi-grid').innerHTML = keys.map((k,i) =>
+      `<div class="kpi-card">
+        <div class="kpi-value">${conteos[k]}</div>
+        <div class="kpi-label">${labels[i]}</div>
+       </div>`
+    ).join('');
+  } catch(e) { console.warn('KPIs:', e); }
+}
+
+/* Carga la tabla principal según el rol */
+async function cargarTabla() {
+  const titulo = document.getElementById('main-table-title');
+  const link   = document.getElementById('main-table-link');
+  const body   = document.getElementById('main-table-body');
+
+  let url = '/api/v1/solicitudes/';
+  let titleText = 'Mis solicitudes recientes';
+  let linkHref  = '/api/v1/app/solicitudes';
+
+  if (['REVISOR_JURIDICO','APROBADOR_JURIDICO'].includes(ROL)) {
+    url = '/api/v1/workflows/inbox';
+    titleText = 'Tareas pendientes asignadas a ti';
+    linkHref  = '/api/v1/app/tareas';
+  } else if (ROL === 'AUDITOR') {
+    url = '/api/v1/audit/trail/global';
+    titleText = 'Actividad reciente';
+    linkHref  = '/api/v1/app/trazabilidad';
+  }
+
+  titulo.textContent = titleText;
+  link.href = linkHref;
+
+  try {
+    const data = await apiGet(url);
+    if (!data || data.length === 0) {
+      body.innerHTML = `<div class="empty-state"><div>No hay elementos que mostrar.</div></div>`;
+      return;
+    }
+    const filas = data.slice(0,5).map(s => `
+      <tr>
+        <td class="cell-muted">${s.numero_respuesta || s.id?.slice(0,8)+'...'}</td>
+        <td><strong>${s.titulo || s.accion || '—'}</strong></td>
+        <td class="cell-muted">${s.tipo_documento || s.tipo_documento || '—'}</td>
+        <td><span class="badge ${badgeClass(s.estado || '')}">${(s.estado||'').replace('_',' ')}</span></td>
+        <td><a href="/api/v1/app/solicitudes/${s.id}" class="cell-link">Ver</a></td>
+      </tr>`).join('');
+    body.innerHTML = `<table>
+      <thead><tr><th>N°</th><th>Título</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${filas}</tbody></table>`;
+  } catch(e) {
+    body.innerHTML = `<div class="empty-state"><div>Error al cargar datos. Intenta recargar.</div></div>`;
+  }
+}
+
+/* Carga usuarios activos para el widget del Admin */
+async function cargarUsuariosRapidos() {
+  // No hay endpoint de users aún en la API pública; se muestra enlace al panel
+  const w = document.getElementById('usuarios-rapidos');
+  if (!w) return;
+  w.innerHTML = `<div class="section-title">Usuarios del sistema</div>
+    <p class="muted" style="font-size:.85rem;">Gestiona altas, bajas y roles desde el panel de usuarios.</p>
+    <a href="/api/v1/app/usuarios" class="btn btn-outline btn-sm">Ir a usuarios</a>`;
+}
+
+function badgeClass(estado) {
+  const m = {BORRADOR:'badge-gray',EN_REVISION:'badge-amber',OBSERVADO:'badge-red',
+             EN_APROBACION:'badge-blue',APROBADO:'badge-green',RECHAZADO:'badge-red',FIRMADO:'badge-navy'};
+  return m[estado] || 'badge-gray';
+}
+
+// Animación del loader
+const style = document.createElement('style');
+style.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+document.head.appendChild(style);
+</script>
+{% endblock %}

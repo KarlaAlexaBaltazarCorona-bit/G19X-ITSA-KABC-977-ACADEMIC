@@ -1,0 +1,42 @@
+{#
+  macros.html — Macros Jinja2 reutilizables en todas las páginas.
+
+  USO en cualquier template:
+    {% from "partials/macros.html" import status_badge, risk_badge %}
+    {{ status_badge(solicitud.estado) }}
+#}
+
+{#
+  status_badge(estado): genera el badge de color correcto según el estado
+  de la solicitud (BORRADOR, EN_REVISION, OBSERVADO, EN_APROBACION,
+  APROBADO, RECHAZADO, FIRMADO).
+#}
+{% macro status_badge(estado) -%}
+{% set clases = {
+  'BORRADOR':       'badge-gray',
+  'EN_REVISION':    'badge-amber',
+  'OBSERVADO':      'badge-red',
+  'EN_APROBACION':  'badge-blue',
+  'APROBADO':       'badge-green',
+  'RECHAZADO':      'badge-red',
+  'FIRMADO':        'badge-navy'
+} %}
+<span class="badge {{ clases.get(estado, 'badge-gray') }}">
+  {{ estado.replace('_',' ').title() }}
+</span>
+{%- endmacro %}
+
+{#
+  risk_badge(nivel): genera el badge de nivel de riesgo de análisis IA
+  (ALTO, MEDIO, BAJO).
+#}
+{% macro risk_badge(nivel) -%}
+<span class="badge badge-risk-{{ nivel | lower }}">Riesgo {{ nivel | lower }}</span>
+{%- endmacro %}
+
+{#
+  rol_label(rol): convierte el valor interno del rol en etiqueta legible.
+#}
+{% macro rol_label(rol) -%}
+{{ rol.replace('_', ' ').title() }}
+{%- endmacro %}

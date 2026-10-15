@@ -1,0 +1,42 @@
+# Git y GitHub
+.git
+.github
+.gitignore
+.gitleaks.toml
+
+# Entornos virtuales y caché de Python
+.venv
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secretos y credenciales locales
+.env
+.env.local
+.env.production
+.env.development
+*.pem
+*.key
+*.pfx
+*.publishsettings
+publish_profile.xml
+azure-publish-profile.xml
+
+# IDE y sistema operativo
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Archivos pesados / PDFs de prueba locales
+*.pdf
+scratch/

@@ -1,0 +1,59 @@
+# ═════════════════════════════════════════════════════════════════════════════
+# docker-compose.yml — Stack Completo (API FastAPI + PostgreSQL)
+# Cumple requerimientos del Proyecto de Desarrollo (Sección 2: Docker)
+# ═════════════════════════════════════════════════════════════════════════════
+#
+# CÓMO USARLO:
+#   Levantar todo el stack:   docker compose up -d --build
+#   Ver logs en vivo:         docker compose logs -f web
+#   Detener contenedores:     docker compose down
+#   Detener y borrar datos:   docker compose down -v
+#
+# URLS:
+#   Portal Web / Login:       http://localhost:8000/login
+#   Swagger OpenAPI Docs:     http://localhost:8000/docs
+#   Healthcheck:              http://localhost:8000/health
+# ═════════════════════════════════════════════════════════════════════════════
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: legaltech-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: legaltech
+      POSTGRES_PASSWORD: legaltech_dev_password_2026
+      POSTGRES_DB: legaltech_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - legaltech_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U legaltech -d legaltech_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: legaltech-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - ENVIRONMENT=development
+      - POSTGRES_URL=postgresql://legaltech:legaltech_dev_password_2026@db:5432/legaltech_db
+      - APP_API_KEY=legaltech-super-secret-api-key-32chars
+      - ENABLE_DOCS=true
+    env_file:
+      - path: .env
+        required: false
+
+volumes:
+  legaltech_pgdata:
+    name: legaltech-pgdata-volume

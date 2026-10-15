@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{#
+  traceability.html — Pantalla 11: Trazabilidad / Historial de auditoría
+  ────────────────────────────────────────────────────────────────────────
+  Roles: AUDITOR, ADMINISTRADOR_PLATAFORMA
+  Muestra el log completo de auditoría (tabla `auditoria`).
+  Cada fila = una acción registrada: quién, qué, cuándo, desde qué IP.
+  Datos: GET /api/v1/audit/trail/{solicitud_id} (por solicitud)
+         La búsqueda por usuario o global no tiene endpoint aún — se filtra en cliente.
+#}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Trazabilidad</h1>
+    <p>Registro completo de quién hizo qué, cuándo y desde dónde.</p>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="filter-bar">
+  <div class="filter-field">
+    <label>ID de solicitud</label>
+    <input class="input" type="text" id="filtro-sol" placeholder="Pega el ID de la solicitud">
+  </div>
+  <div class="filter-field">
+    <label>Fecha desde</label>
+    <input class="input" type="date" id="filtro-desde">
+  </div>
+  <div class="filter-actions">
+    <button type="button" class="btn btn-primary btn-sm" onclick="buscar()">
+      <i data-lucide="search" class="icon" style="width:15px;height:15px"></i> Buscar
+    </button>
+    <button type="button" class="btn btn-outline btn-sm" onclick="limpiar()">Limpiar</button>
+  </div>
+</div>
+
+<!-- Timeline de auditoría -->
+<div class="card card-pad">
+  <ul class="timeline" id="timeline-auditoria">
+    <li>
+      <div class="dot-wrap"><div class="dot"></div></div>
+      <div class="tl-body">
+        <div class="muted" style="font-size:.85rem;">Introduce el ID de una solicitud y pulsa "Buscar" para ver su trazabilidad.</div>
+      </div>
+    </li>
+  </ul>
+</div>
+
+<div style="margin-top:1.2rem;">
+  <a href="/api/v1/app/solicitudes" class="btn btn-outline">
+    <i data-lucide="arrow-left" class="icon" style="width:16px;height:16px"></i> Volver a solicitudes
+  </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/*
+ * traceability.js (inline) — Busca y muestra el historial de auditoría
+ * de una solicitud específica.
+ * Fuente: GET /api/v1/audit/trail/{solicitud_id}
+ */
+let LOG_CARGADO = [];
+
+async function buscar() {
+  const solId = document.getElementById('filtro-sol').value.trim();
+  const desde = document.getElementById('filtro-desde').value;
+  if (!solId) { alert('Introduce el ID de una solicitud para buscar.'); return; }
+
+  const tl = document.getElementById('timeline-auditoria');
+  tl.innerHTML = '<li><div class="dot-wrap"><div class="dot"></div></div><div class="tl-body"><div class="muted">Cargando...</div></div></li>';
+
+  try {
+    const data = await apiGet(`/api/v1/audit/trail/${solId}`);
+    LOG_CARGADO = data || [];
+
+    /* Filtrar por fecha si se especificó */
+    let filtrado = LOG_CARGADO;
+    if (desde) filtrado = filtrado.filter(e => (e.creada_at||'') >= desde);
+
+    renderTimeline(filtrado);
+  } catch(e) {
+    tl.innerHTML = '<li><div class="dot-wrap"><div class="dot"></div></div><div class="tl-body"><div class="muted">No se encontraron registros para esa solicitud.</div></div></li>';
+  }
+}
+
+function renderTimeline(items) {
+  const tl = document.getElementById('timeline-auditoria');
+  if (!items || items.length === 0) {
+    tl.innerHTML = '<li><div class="dot-wrap"><div class="dot"></div></div><div class="tl-body"><div class="muted">Sin registros para mostrar.</div></div></li>';
+    return;
+  }
+  tl.innerHTML = items.map((e, i) => `
+    <li>
+      <div class="dot-wrap">
+        <div class="dot"></div>
+        ${i < items.length - 1 ? '<div class="line"></div>' : ''}
+      </div>
+      <div class="tl-body">
+        <div>
+          <strong>${e.usuario_id?.slice(0,8)||'—'}...</strong>
+          <span class="faint" style="font-size:.78rem;"> · ${e.tipo_documento}</span>
+        </div>
+        <div style="font-size:.87rem;color:var(--ink-soft);margin-top:.15rem;">${e.accion}</div>
+        ${e.valor_anterior && e.valor_nuevo
+          ? `<div style="font-size:.78rem;color:var(--ink-faint);margin-top:.2rem;">
+               <span style="background:var(--red-100);color:var(--red-600);padding:.1rem .4rem;border-radius:4px;">${e.valor_anterior}</span>
+               → 
+               <span style="background:var(--green-100);color:var(--green-600);padding:.1rem .4rem;border-radius:4px;">${e.valor_nuevo}</span>
+             </div>`
+          : ''}
+        <div class="tl-meta">
+          ${(e.creada_at||'').slice(0,16).replace('T',' ')}
+          ${e.direccion_ip ? ' · IP: '+e.direccion_ip : ''}
+        </div>
+      </div>
+    </li>`).join('');
+}
+
+function limpiar() {
+  document.getElementById('filtro-sol').value = '';
+  document.getElementById('filtro-desde').value = '';
+  document.getElementById('timeline-auditoria').innerHTML =
+    '<li><div class="dot-wrap"><div class="dot"></div></div><div class="tl-body"><div class="muted">Introduce el ID de una solicitud para comenzar.</div></div></li>';
+}
+</script>
+{% endblock %}

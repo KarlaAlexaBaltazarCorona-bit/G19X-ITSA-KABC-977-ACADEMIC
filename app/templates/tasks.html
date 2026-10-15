@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% from "partials/macros.html" import status_badge %}
+{#
+  tasks.html — Pantalla 3: Mis tareas / Bandeja de trabajo
+  ──────────────────────────────────────────────────────────
+  Roles: REVISOR_JURIDICO, APROBADOR_JURIDICO, ADMINISTRADOR_PLATAFORMA
+  Muestra las solicitudes activas asignadas al usuario autenticado.
+  El Admin ve todas las solicitudes activas (para poder reasignar).
+  Datos: GET /api/v1/workflows/inbox
+#}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Bandeja de trabajo</h1>
+    <p>
+      {% if current_role == 'ADMINISTRADOR_PLATAFORMA' %}
+        Todas las solicitudes activas en el sistema.
+      {% else %}
+        Solicitudes que debes revisar o aprobar.
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- Filtros de búsqueda -->
+<div class="filter-bar">
+  <div class="filter-field">
+    <label>Buscar</label>
+    <input class="input" type="text" id="filtro-q" placeholder="Título o número de solicitud">
+  </div>
+  <div class="filter-field">
+    <label>Fecha límite antes de</label>
+    <input class="input" type="date" id="filtro-fecha">
+  </div>
+  <div class="filter-actions">
+    <button type="button" class="btn btn-primary btn-sm" onclick="filtrarTabla()">
+      <i data-lucide="search" class="icon" style="width:15px;height:15px"></i> Buscar
+    </button>
+    <button type="button" class="btn btn-outline btn-sm" onclick="limpiarFiltros()">Limpiar</button>
+  </div>
+</div>
+
+<!-- Tabla de tareas -->
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>N° Solicitud</th>
+        <th>Título</th>
+        <th>Tipo</th>
+        <th>Prioridad</th>
+        <th>Estado</th>
+        <th>Fecha límite</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tabla-body">
+      <tr><td colspan="7">
+        <div class="empty-state">
+          <i data-lucide="loader-2" class="icon" style="animation:spin 1s linear infinite"></i>
+          <div>Cargando bandeja de trabajo...</div>
+        </div>
+      </td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/*
+ * tasks.js (inline) — Carga y filtra las tareas de la bandeja de trabajo.
+ * Fuente: GET /api/v1/workflows/inbox
+ */
+const ROL_ACTIVO = "{{ current_role }}";
+let TODAS_LAS_TAREAS = [];
+
+document.addEventListener('DOMContentLoaded', cargarTareas);
+
+async function cargarTareas() {
+  try {
+    const data = await apiGet('/api/v1/workflows/inbox');
+    TODAS_LAS_TAREAS = data || [];
+    renderTabla(TODAS_LAS_TAREAS);
+  } catch(e) {
+    document.getElementById('tabla-body').innerHTML =
+      `<tr><td colspan="7"><div class="empty-state"><div>Error al cargar las tareas.</div></div></td></tr>`;
+  }
+}
+
+function renderTabla(items) {
+  const body = document.getElementById('tabla-body');
+  if (!items || items.length === 0) {
+    body.innerHTML = `<tr><td colspan="7">
+      <div class="empty-state">
+        <i data-lucide="inbox" class="icon"></i>
+        <div>No tienes tareas pendientes. 🎉</div>
+      </div></td></tr>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  body.innerHTML = items.map(s => {
+    /* Determinar el enlace de acción según el rol y estado */
+    let accionUrl = `/api/v1/app/revision/${s.id}`;
+    let accionLabel = 'Revisar';
+    if (['APROBADOR_JURIDICO','ADMINISTRADOR_PLATAFORMA'].includes(ROL_ACTIVO) &&
+        s.estado === 'EN_APROBACION') {
+      accionUrl = `/api/v1/app/aprobacion/${s.id}`;
+      accionLabel = 'Decidir';
+    }
+    const prioColor = {URGENTE:'badge-red',ALTA:'badge-amber',NORMAL:'badge-blue',BAJA:'badge-gray'};
+    return `<tr>
+      <td class="cell-muted">${s.numero_respuesta || s.id?.slice(0,8)+'...'}</td>
+      <td><strong>${s.titulo}</strong></td>
+      <td class="cell-muted">${s.tipo_documento}</td>
+      <td><span class="badge ${prioColor[s.prioridad]||'badge-gray'}">${s.prioridad}</span></td>
+      <td><span class="badge ${badgeClass(s.estado)}">${s.estado.replace('_',' ')}</span></td>
+      <td class="cell-muted">${s.fecha_limite ? s.fecha_limite.slice(0,10) : '—'}</td>
+      <td><a href="${accionUrl}" class="cell-link">${accionLabel}</a></td>
+    </tr>`;
+  }).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function filtrarTabla() {
+  const q     = document.getElementById('filtro-q').value.trim().toLowerCase();
+  const fecha = document.getElementById('filtro-fecha').value;
+  let filtrado = TODAS_LAS_TAREAS;
+  if (q)     filtrado = filtrado.filter(s => s.titulo.toLowerCase().includes(q) || (s.numero_respuesta||'').toLowerCase().includes(q));
+  if (fecha) filtrado = filtrado.filter(s => s.fecha_limite && s.fecha_limite.slice(0,10) <= fecha);
+  renderTabla(filtrado);
+}
+
+function limpiarFiltros() {
+  document.getElementById('filtro-q').value = '';
+  document.getElementById('filtro-fecha').value = '';
+  renderTabla(TODAS_LAS_TAREAS);
+}
+
+function badgeClass(e) {
+  const m={BORRADOR:'badge-gray',EN_REVISION:'badge-amber',OBSERVADO:'badge-red',EN_APROBACION:'badge-blue',APROBADO:'badge-green',RECHAZADO:'badge-red',FIRMADO:'badge-navy'};
+  return m[e]||'badge-gray';
+}
+
+const s=document.createElement('style');
+s.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
+document.head.appendChild(s);
+</script>
+{% endblock %}
