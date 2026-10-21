@@ -1,0 +1,156 @@
+name: 🛡️ DevSecOps & OWASP Security Audit
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 1. Detección de Secretos y Tokens (Gitleaks)
+  # ─────────────────────────────────────────────────────────────────────────────
+  gitleaks:
+    name: 🔑 Detección de Secretos (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código (Historial completo para escaneo)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Escaneo con Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_SUMMARY: true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 2. Calidad de Código, Estilo y Errores de Sintaxis (Ruff)
+  # ─────────────────────────────────────────────────────────────────────────────
+  code-quality:
+    name: ⚡ Calidad y Sintaxis (Ruff Linter)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar Ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Ejecutar Ruff Check
+        run: |
+          ruff check .
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 3. Análisis Estático de Ciberseguridad (Bandit AST + Semgrep OWASP Top 10)
+  # ─────────────────────────────────────────────────────────────────────────────
+  sast-audit:
+    name: 🕵️ Análisis SAST (Bandit & Semgrep OWASP)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar Herramientas SAST
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit semgrep
+
+      - name: Escaneo AST con Bandit (Nivel Medio/Alto)
+        run: |
+          bandit -r . -x ./tests,./scripts -ll
+
+      - name: Escaneo OWASP Top 10 y Python con Semgrep
+        run: |
+          semgrep scan --config "p/owasp-top-ten" --config "p/python" --metrics=off app/
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 4. Auditoría de Dependencias y CVEs (pip-audit / SCA)
+  # ─────────────────────────────────────────────────────────────────────────────
+  sca-audit:
+    name: 📦 Vulnerabilidades en Dependencias (pip-audit SCA)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+
+      - name: Escanear requirements.txt contra base de datos OSV
+        run: |
+          pip-audit -r requirements.txt -s osv
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 5. Seguridad en Contenedores (Hadolint Dockerfile Linter)
+  # ─────────────────────────────────────────────────────────────────────────────
+  container-lint:
+    name: 🐳 Auditoría de Dockerfile (Hadolint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Linting del Dockerfile con Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 6. Pruebas Unitarias, RBAC y Aislamiento (Pytest)
+  # ─────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: 🧪 Pruebas Unitarias y RBAC (Pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar Dependencias del Proyecto y Testing
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest httpx
+
+      - name: Ejecutar Pytest Suite
+        env:
+          APP_API_KEY: "test-ci-api-key-32chars-minimum-sec"
+          ENVIRONMENT: "testing"
+          ENABLE_DOCS: "false"
+        run: |
+          pytest -v

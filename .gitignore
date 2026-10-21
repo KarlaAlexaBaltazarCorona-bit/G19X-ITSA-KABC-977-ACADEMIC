@@ -5,10 +5,8 @@
 .env.production
 azure-publish-profile.xml
 *.publishsettings
-
 *.PublishSettings
 publish_profile.xml
-
 
 # Python
 __pycache__/
@@ -23,3 +21,9 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local notes, checklists & personal feedback
+pendientes.txt
+CheckListrevision.txt
+test_conexion.txt
+*.local.txt
