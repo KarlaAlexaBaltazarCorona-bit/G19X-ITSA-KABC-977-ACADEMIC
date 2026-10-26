@@ -11,6 +11,9 @@ param environmentType string = 'Standard'
 @description('Región geográfica de Azure donde se desplegarán los recursos.')
 param location string = resourceGroup().location
 
+@description('Región geográfica para PostgreSQL Flexible Server (mexicocentral soporta B1ms burstable en suscripciones estudiantiles).')
+param pgLocation string = 'mexicocentral'
+
 @description('Nombre de usuario administrador para la base de datos PostgreSQL Flexible Server.')
 param dbAdminLogin string = 'adminjuridico'
 
@@ -40,7 +43,9 @@ var storageSku = isEnterprise ? 'Standard_ZRS' : 'Standard_LRS'
 var pgSkuName = isEnterprise ? 'Standard_D2ds_v5' : 'Standard_B1ms'
 var pgTier = isEnterprise ? 'GeneralPurpose' : 'Burstable'
 var pgHaMode = isEnterprise ? 'ZoneRedundant' : 'Disabled'
-var appServiceSku = isEnterprise ? 'P1v3' : 'B1'
+var docIntelSku = isEnterprise ? 'S0' : 'F0'
+var searchSku = isEnterprise ? 'basic' : 'free'
+var appServiceSku = isEnterprise ? 'P1v3' : 'F1'
 var openAiCapacity = isEnterprise ? 100 : 50
 
 var resolvedApiKey = empty(appApiKey) ? 'lt_${uniqueString(resourceGroup().id, deployment().name, 'apikey')}' : appApiKey
@@ -74,7 +79,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
 // 2. Base de Datos PostgreSQL Flexible Server
 resource pgServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview' = {
   name: pgServerName
-  location: location
+  location: pgLocation
   sku: {
     name: pgSkuName
     tier: pgTier
@@ -164,7 +169,7 @@ resource docIntel 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   location: location
   kind: 'FormRecognizer'
   sku: {
-    name: 'S0'
+    name: docIntelSku
   }
   properties: {
     customSubDomainName: docIntelName
@@ -177,7 +182,7 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
   name: searchServiceName
   location: location
   sku: {
-    name: 'basic'
+    name: searchSku
   }
   properties: {
     replicaCount: 1
@@ -211,7 +216,7 @@ resource appService 'Microsoft.Web/sites@2023-01-01' = {
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'PYTHON|3.11'
-      alwaysOn: true
+      alwaysOn: isEnterprise
       appCommandLine: 'gunicorn --bind 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker main:app'
       appSettings: [
         {
@@ -239,6 +244,10 @@ resource appService 'Microsoft.Web/sites@2023-01-01' = {
           value: 'gpt-5-mini'
         }
         {
+          name: 'AZURE_OPENAI_REASONING_DEPLOYMENT_NAME'
+          value: 'gpt-5'
+        }
+        {
           name: 'AZURE_OPENAI_API_VERSION'
           value: '2024-08-01-preview'
         }
@@ -247,8 +256,20 @@ resource appService 'Microsoft.Web/sites@2023-01-01' = {
           value: '1000'
         }
         {
+          name: 'AZURE_OPENAI_MAX_TOKENS_RISK'
+          value: '2500'
+        }
+        {
           name: 'AZURE_OPENAI_REASONING_EFFORT'
           value: 'low'
+        }
+        {
+          name: 'AZURE_OPENAI_REASONING_EFFORT_RISK'
+          value: 'high'
+        }
+        {
+          name: 'AI_MAX_CONTEXT_CHARS'
+          value: '14000'
         }
         {
           name: 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT'
@@ -314,5 +335,11 @@ resource appService 'Microsoft.Web/sites@2023-01-01' = {
 output appServiceUrl string = 'https://${appService.properties.defaultHostName}'
 output appApiKey string = resolvedApiKey
 output postgresServer string = pgServer.properties.fullyQualifiedDomainName
+output postgresUrl string = 'postgresql+psycopg2://${dbAdminLogin}:${dbAdminPassword}@${pgServer.properties.fullyQualifiedDomainName}:5432/legaltech_db?sslmode=require'
 output openAiEndpoint string = openAi.properties.endpoint
+output openAiApiKey string = openAi.listKeys().key1
 output docIntelEndpoint string = docIntel.properties.endpoint
+output docIntelApiKey string = docIntel.listKeys().key1
+output searchEndpoint string = 'https://${searchServiceName}.search.windows.net'
+output searchApiKey string = searchService.listAdminKeys().primaryKey
+output storageConnectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=core.windows.net'

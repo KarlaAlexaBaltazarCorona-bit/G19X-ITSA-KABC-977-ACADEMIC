@@ -1,4 +1,4 @@
-name: 🛡️ DevSecOps & OWASP Security Audit
+name: 🛡️ DevSecOps, OWASP Security Audit & Azure Deploy
 
 on:
   push:
@@ -12,9 +12,9 @@ permissions:
   security-events: write
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   # 1. Detección de Secretos y Tokens (Gitleaks)
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   gitleaks:
     name: 🔑 Detección de Secretos (Gitleaks)
     runs-on: ubuntu-latest
@@ -30,9 +30,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_SUMMARY: true
 
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   # 2. Calidad de Código, Estilo y Errores de Sintaxis (Ruff)
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   code-quality:
     name: ⚡ Calidad y Sintaxis (Ruff Linter)
     runs-on: ubuntu-latest
@@ -55,11 +55,11 @@ jobs:
         run: |
           ruff check .
 
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   # 3. Análisis Estático de Ciberseguridad (Bandit AST + Semgrep OWASP Top 10)
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   sast-audit:
-    name: 🕵️ Análisis SAST (Bandit & Semgrep OWASP)
+    name: 🔍 Análisis SAST (Bandit & Semgrep OWASP)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout del código
@@ -84,9 +84,9 @@ jobs:
         run: |
           semgrep scan --config "p/owasp-top-ten" --config "p/python" --metrics=off app/
 
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   # 4. Auditoría de Dependencias y CVEs (pip-audit / SCA)
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   sca-audit:
     name: 📦 Vulnerabilidades en Dependencias (pip-audit SCA)
     runs-on: ubuntu-latest
@@ -109,9 +109,9 @@ jobs:
         run: |
           pip-audit -r requirements.txt -s osv
 
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   # 5. Seguridad en Contenedores (Hadolint Dockerfile Linter)
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   container-lint:
     name: 🐳 Auditoría de Dockerfile (Hadolint)
     runs-on: ubuntu-latest
@@ -125,9 +125,9 @@ jobs:
           dockerfile: Dockerfile
           failure-threshold: error
 
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   # 6. Pruebas Unitarias, RBAC y Aislamiento (Pytest)
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
   unit-tests:
     name: 🧪 Pruebas Unitarias y RBAC (Pytest)
     runs-on: ubuntu-latest
@@ -154,3 +154,31 @@ jobs:
           ENABLE_DOCS: "false"
         run: |
           pytest -v
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 7. Despliegue Automatizado a Azure App Service (Frenos de Emergencia Activos)
+  # ════════════════════════════════════════════════════════════════════════════
+  deploy-to-azure:
+    name: 🚀 Despliegue en Azure App Service
+    needs: [gitleaks, code-quality, sast-audit, sca-audit, container-lint, unit-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar Dependencias de Producción
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Desplegar en Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'app-legaltech-z5m4thvbo3byk'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
