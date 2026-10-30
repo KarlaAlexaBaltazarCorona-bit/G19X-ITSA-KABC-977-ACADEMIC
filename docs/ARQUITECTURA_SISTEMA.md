@@ -4,7 +4,7 @@
 **Organización Patrocinadora:** PluriOne S.A. de C.V. (Develop Talent & Technology)  
 **Institución Académica:** Instituto Tecnológico Superior de Atlixco (ITSA) — Residencia Profesional  
 **Estado del Proyecto:** Etapa Terminal / Listo para Producción (Release Candidate)  
-**URL de Producción:** https://legaltech-api-LegalprojectIA-1134.azurewebsites.net  
+**URL de Producción:** https://app-legaltech-z5m4thvbo3byk.azurewebsites.net  
 
 ---
 

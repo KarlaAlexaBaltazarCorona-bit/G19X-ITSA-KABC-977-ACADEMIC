@@ -47,7 +47,7 @@ Retorna los identificadores públicos requeridos por la librería cliente MSAL.j
 {
   "clientId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
   "authority": "https://login.microsoftonline.com/common",
-  "redirectUri": "https://legaltech-api-LegalprojectIA-1134.azurewebsites.net/login"
+  "redirectUri": "https://app-legaltech-z5m4thvbo3byk.azurewebsites.net/login"
 }
 ```
 

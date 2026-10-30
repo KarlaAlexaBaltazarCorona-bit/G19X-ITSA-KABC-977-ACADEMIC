@@ -40,7 +40,7 @@ Bienvenido al centro neurálgico de documentación técnica, funcional y de oper
 
 ## 🎯 Puntos de Acceso en Producción y Desarrollo
 
-- **URL de Producción:** https://legaltech-api-LegalprojectIA-1134.azurewebsites.net
+- **URL de Producción:** https://app-legaltech-z5m4thvbo3byk.azurewebsites.net
 - **Portal de Acceso (Login):** `/login`
 - **Dashboard Principal:** `/api/v1/app/dashboard`
 - **Documentación Interactiva Swagger:** `/docs` (disponible en entorno local o con `ENABLE_DOCS=true`)

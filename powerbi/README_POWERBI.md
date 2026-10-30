@@ -42,7 +42,7 @@ pg-proyecto-dev            /api/v1/analytics/powerbi-feed
 1. En Power BI Desktop, clic en **Obtener datos** -> **Web**.
 2. Selecciona **Básico** e introduce la URL del endpoint:
    ```
-   https://legaltech-api-LegalprojectIA-1134.azurewebsites.net/api/v1/analytics/powerbi-feed
+   https://app-legaltech-z5m4thvbo3byk.azurewebsites.net/api/v1/analytics/powerbi-feed
    ```
    *(O localmente: `http://localhost:8000/api/v1/analytics/powerbi-feed`)*
 3. En la cabecera HTTP de solicitud agrega:

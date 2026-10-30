@@ -83,7 +83,7 @@ La plataforma cuenta con **cuatro perfiles oficiales**, alineados a la jerarquí
 La plataforma utiliza el protocolo seguro OpenID Connect / OAuth2 a través de **Microsoft Entra ID**:
 
 1. Ingrese a la URL de la plataforma:
-   - **Producción:** `https://legaltech-api-LegalprojectIA-1134.azurewebsites.net/login`
+   - **Producción:** `https://app-legaltech-z5m4thvbo3byk.azurewebsites.net/login`
    - **Local:** `http://localhost:8000/login`
 2. Haga clic en el botón corporativo **"Iniciar Sesión con Microsoft 365"**.
 3. Se abrirá la ventana oficial de autenticación de Microsoft:

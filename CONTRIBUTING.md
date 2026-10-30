@@ -6,7 +6,7 @@
 **Metodología:** Scrum / Ágil  
 **Documento Rector de Requerimientos:** `Plantilla Historias Usuario.xls (1).xlsx` (17 Historias de Usuario Oficiales, HU-01 a HU-17)  
 **Estado Actual:** 🏁 **Etapa Terminal / Listo para Entrega (100% Completado)**  
-**URL de Producción:** https://legaltech-api-LegalprojectIA-1134.azurewebsites.net  
+**URL de Producción:** https://app-legaltech-z5m4thvbo3byk.azurewebsites.net  
 
 ---
 

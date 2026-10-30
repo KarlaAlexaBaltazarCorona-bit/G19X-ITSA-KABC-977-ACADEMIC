@@ -2,7 +2,7 @@
 
 ### Plataforma Integral de Workflow para Revisión Jurídica y Análisis Documental con Inteligencia Artificial (SaaS)
 
-[![Despliegue en Azure](https://img.shields.io/badge/Azure-App%20Service-0078D4?logo=microsoftazure&logoColor=white)](https://legaltech-api-LegalprojectIA-1134.azurewebsites.net)
+[![Despliegue en Azure](https://img.shields.io/badge/Azure-App%20Service-0078D4?logo=microsoftazure&logoColor=white)](https://app-legaltech-z5m4thvbo3byk.azurewebsites.net)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -12,7 +12,7 @@
 
 ---
 
-**Entorno en Producción:** [https://legaltech-api-LegalprojectIA-1134.azurewebsites.net](https://legaltech-api-LegalprojectIA-1134.azurewebsites.net)  
+**Entorno en Producción:** [https://app-legaltech-z5m4thvbo3byk.azurewebsites.net](https://app-legaltech-z5m4thvbo3byk.azurewebsites.net) ([Login](https://app-legaltech-z5m4thvbo3byk.azurewebsites.net/login) | [OpenAPI](https://app-legaltech-z5m4thvbo3byk.azurewebsites.net/docs) | [Healthcheck](https://app-legaltech-z5m4thvbo3byk.azurewebsites.net/health) | [SQLAdmin](https://app-legaltech-z5m4thvbo3byk.azurewebsites.net/admin))  
 **Organización Patrocinadora:** PluriOne S.A. de C.V. (Develop Talent & Technology)  
 **Institución Académica:** Instituto Tecnológico Superior de Atlixco (ITSA) — Residencia Profesional  
 **Estado:** 🏁 **MVP completo; ver el estado del pipeline**  
@@ -177,7 +177,7 @@ ENTRA_TENANT_ID=common                                 # Multi-tenant o Tenant I
 1. Navegue a **Microsoft Entra ID** → **App registrations** → Registre su aplicación (`LegalprojectIA`).
 2. En **Authentication** → **Redirect URIs**, configure:
    - `http://localhost:8000/login` (desarrollo local)
-   - `https://legaltech-api-LegalprojectIA-1134.azurewebsites.net/login` (producción)
+   - `https://app-legaltech-z5m4thvbo3byk.azurewebsites.net/login` (producción)
 3. En **App roles**, configure los 4 roles del sistema: `REVISOR_JURIDICO`, `APROBADOR_JURIDICO`, `ADMINISTRADOR_PLATAFORMA`, `AUDITOR`.
 
 ---
