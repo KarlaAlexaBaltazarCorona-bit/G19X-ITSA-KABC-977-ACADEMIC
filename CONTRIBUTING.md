@@ -61,7 +61,7 @@ Todas las **17 Historias de Usuario oficiales** han sido implementadas, verifica
 ## 🏛️ Arquitectura del Repositorio
 
 ```text
-Nos-vamos-a-graduar/
+G19X-ITSA-KABC-977-ACADEMIC/
 ├── alembic/                         # 🗄️ Control de versiones de Base de Datos
 │   ├── env.py                       # Conexión y metadatos de modelos SQLAlchemy
 │   └── versions/                    # Migraciones de esquema

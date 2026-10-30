@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Tests](https://img.shields.io/badge/Tests-58%20Passed%20(100%25)-success?logo=pytest&logoColor=white)](#-pruebas-unitarias-y-certificación-de-calidad)
+[![DevSecOps](https://github.com/KarlaAlexaBaltazarCorona-bit/G19X-ITSA-KABC-977-ACADEMIC/actions/workflows/devsecops-audit.yml/badge.svg)](https://github.com/KarlaAlexaBaltazarCorona-bit/G19X-ITSA-KABC-977-ACADEMIC/actions/workflows/devsecops-audit.yml)
 [![DevSecOps](https://img.shields.io/badge/DevSecOps-Ruff%20%7C%20Bandit%20%7C%20Semgrep-purple?logo=githubactions&logoColor=white)](#-devsecops-y-seguridad-corporativa)
 [![Licencia](https://img.shields.io/badge/Licencia-Privada%20%2F%20PluriOne-informational)](#)
 
@@ -15,9 +15,9 @@
 **Entorno en Producción:** [https://legaltech-api-LegalprojectIA-1134.azurewebsites.net](https://legaltech-api-LegalprojectIA-1134.azurewebsites.net)  
 **Organización Patrocinadora:** PluriOne S.A. de C.V. (Develop Talent & Technology)  
 **Institución Académica:** Instituto Tecnológico Superior de Atlixco (ITSA) — Residencia Profesional  
-**Estado:** 🏁 **Etapa Terminal / Listo para Entrega (100% de Historias de Usuario Completadas)**  
+**Estado:** 🏁 **MVP completo; ver el estado del pipeline**  
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fisc221977-cpu%2FNos-vamos-a-graduar%2Fmain%2Finfra%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FKarlaAlexaBaltazarCorona-bit%2FG19X-ITSA-KABC-977-ACADEMIC%2Fmain%2Finfra%2Fazuredeploy.json)
 
 > 📦 **Despliegue Llave en Mano "Click-to-Go":** Aprovisione toda la infraestructura corporativa de Microsoft Azure (PostgreSQL Flexible Server, App Service Linux, Azure OpenAI, Document Intelligence OCR, Blob Storage y AI Search) en 4 minutos con un solo clic. Consulte la [Guía de Entrega y Despliegue en Azure](docs/GUIA_ENTREGA_CLIENTE_AZURE.md).
 
@@ -105,7 +105,7 @@ El repositorio incluye una exhaustiva suite de documentación técnica y operati
 ### 2. Clonación y Entorno Virtual
 ```bash
 # Clonar el repositorio
-git clone https://github.com/isc221977-cpu/Nos-vamos-a-graduar.git LegalprojectIA
+git clone https://github.com/KarlaAlexaBaltazarCorona-bit/G19X-ITSA-KABC-977-ACADEMIC.git LegalprojectIA
 cd LegalprojectIA
 
 # Crear y activar entorno virtual
@@ -159,7 +159,7 @@ docker compose up -d --build
 docker compose ps
 
 # Ver registros de la aplicación
-docker compose logs -f app
+docker compose logs -f web
 ```
 
 ---
@@ -205,17 +205,18 @@ El repositorio incorpora controles de seguridad continuos antes de cada entrega:
 
 ## 🧪 Pruebas Unitarias y Certificación de Calidad
 
-La solución cuenta con una suite automatizada de **58 pruebas unitarias y de integración** que abarcan control de acceso, IA, analítica, auditoría, criptografía y ciclo de vida de expedientes:
+La solución cuenta con una suite automatizada de **pruebas unitarias y de integración** que abarcan control de acceso, IA, analítica, auditoría, criptografía y ciclo de vida de expedientes:
 
 ```bash
 # Ejecutar todas las pruebas con pytest
 pytest -v
 ```
 
-**Resultado:**
-```text
-======================= 58 passed in 26.45s =======================
-```
+---
+
+## Uso de inteligencia artificial
+
+Este proyecto se construyó con apoyo de un asistente de IA para generar código, redactar documentación y configurar el pipeline de GitHub Actions. Revisé, adapté y probé cada cambio antes de subirlo.
 
 ---
 

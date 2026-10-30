@@ -39,7 +39,7 @@ El cliente puede elegir cualquiera de los dos métodos según su preferencia:
 
 Haciendo clic en el siguiente botón oficial de Microsoft, el navegador abrirá el Portal de Azure directamente en el formulario visual de la plantilla:
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fisc221977-cpu%2FNos-vamos-a-graduar%2Fmain%2Finfra%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FKarlaAlexaBaltazarCorona-bit%2FG19X-ITSA-KABC-977-ACADEMIC%2Fmain%2Finfra%2Fazuredeploy.json)
 
 **Pasos en el Portal:**
 1. Seleccionar la **Suscripción** de Azure y el **Resource Group** (o crear uno nuevo, ej. `rg-legaltech-prod`).
@@ -60,8 +60,8 @@ Para equipos de DevOps que prefieran la consola, pueden abrir [Azure Cloud Shell
 #### En Linux / macOS / Azure Cloud Shell (Bash):
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/isc221977-cpu/Nos-vamos-a-graduar.git
-cd Nos-vamos-a-graduar
+git clone https://github.com/KarlaAlexaBaltazarCorona-bit/G19X-ITSA-KABC-977-ACADEMIC.git
+cd G19X-ITSA-KABC-977-ACADEMIC
 
 # 2. Ejecutar el script automatizado
 chmod +x scripts/deploy_client_infra.sh
@@ -71,8 +71,8 @@ chmod +x scripts/deploy_client_infra.sh
 #### En Windows (PowerShell):
 ```powershell
 # 1. Clonar el repositorio
-git clone https://github.com/isc221977-cpu/Nos-vamos-a-graduar.git
-cd Nos-vamos-a-graduar
+git clone https://github.com/KarlaAlexaBaltazarCorona-bit/G19X-ITSA-KABC-977-ACADEMIC.git
+cd G19X-ITSA-KABC-977-ACADEMIC
 
 # 2. Ejecutar el script automatizado
 .\scripts\deploy_client_infra.ps1 -ResourceGroupName "rg-legaltech-prod" -Location "eastus" -EnvironmentType "Standard"

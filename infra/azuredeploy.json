@@ -63,7 +63,7 @@
     },
     "githubRepoUrl": {
       "type": "string",
-      "defaultValue": "https://github.com/isc221977-cpu/Nos-vamos-a-graduar.git",
+      "defaultValue": "https://github.com/KarlaAlexaBaltazarCorona-bit/G19X-ITSA-KABC-977-ACADEMIC.git",
       "metadata": {
         "description": "URL del repositorio Git que contiene el código fuente para despliegue automatizado continuo."
       }
