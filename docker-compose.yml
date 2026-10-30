@@ -49,6 +49,7 @@ services:
       - ENVIRONMENT=development
       - POSTGRES_URL=postgresql://legaltech:${POSTGRES_PASSWORD}@db:5432/legaltech_db
       - APP_API_KEY=${APP_API_KEY:?Define APP_API_KEY en .env}
+      - APP_ENCRYPTION_KEY=${APP_ENCRYPTION_KEY:?Define APP_ENCRYPTION_KEY en .env}
       - ENABLE_DOCS=true
     env_file:
       - path: .env

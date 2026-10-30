@@ -56,7 +56,7 @@
     },
     "initialAdminEmail": {
       "type": "string",
-      "defaultValue": "isc221977@itsatlixco.edu.mx",
+      "defaultValue": "",
       "metadata": {
         "description": "Correo de la cuenta designada como administradora inicial de la plataforma."
       }

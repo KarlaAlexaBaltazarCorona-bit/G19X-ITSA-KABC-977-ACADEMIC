@@ -1,6 +1,8 @@
 """Servicio de Integración con Azure Blob Storage para Repositorio Documental."""
 
 import logging
+import os
+from pathlib import Path
 from typing import Any
 from app.core.config import settings
 
@@ -54,9 +56,47 @@ class AzureBlobService:
             try:
                 blob_client = client.get_blob_client(container=container_name, blob=filename)
                 blob_client.upload_blob(content, overwrite=True)
-                return blob_url
+                try:
+            local_dir = Path(
+"
+local_storage
+"
+) / (container_name or 
+"
+documentos
+"
+)
+            local_dir.mkdir(parents=True, exist_ok=True)
+            (local_dir / Path(filename).name).write_bytes(content)
+        except Exception as e:
+            logger.warning(
+"
+No se pudo guardar copia local de %s: %s
+"
+, filename, e)
+
+        return blob_url
             except Exception as e:
                 logger.error("Error al subir blob a Azure Storage: %s", e, exc_info=True)
+
+        try:
+            local_dir = Path(
+"
+local_storage
+"
+) / (container_name or 
+"
+documentos
+"
+)
+            local_dir.mkdir(parents=True, exist_ok=True)
+            (local_dir / Path(filename).name).write_bytes(content)
+        except Exception as e:
+            logger.warning(
+"
+No se pudo guardar copia local de %s: %s
+"
+, filename, e)
 
         return blob_url
 
@@ -96,7 +136,9 @@ class AzureBlobService:
                 logger.warning("Fallo al descargar blob vía HTTP desde '%s': %s", filename_or_url, e)
 
         # 3. Fallback: verificar si es una ruta local existente (pruebas o entorno local)
-        import os
+        local_copy = Path("local_storage") / container_name / Path(blob_name).name
+        if local_copy.is_file():
+            return local_copy.read_bytes()
         if os.path.exists(filename_or_url):
             try:
                 with open(filename_or_url, "rb") as f:

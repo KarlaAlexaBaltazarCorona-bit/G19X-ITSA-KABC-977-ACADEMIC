@@ -37,3 +37,4 @@ scripts/env_setup.ps1
 scripts/monitor_ci.ps1
 docs/*.pdf
 *.pdf
+local_storage/

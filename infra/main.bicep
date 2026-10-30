@@ -26,7 +26,7 @@ param dbAdminPassword string
 param appApiKey string = ''
 
 @description('Correo de la cuenta designada como administradora inicial de la plataforma.')
-param initialAdminEmail string = 'isc221977@itsatlixco.edu.mx'
+param initialAdminEmail string = ''
 
 var uniqueSuffix = uniqueString(resourceGroup().id)
 var isEnterprise = environmentType == 'Enterprise_HA'
