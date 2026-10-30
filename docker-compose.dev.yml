@@ -28,7 +28,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER:     legaltech
-      POSTGRES_PASSWORD: legaltech_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
       POSTGRES_DB:       legaltech_db
     # Puerto expuesto para conectarse con herramientas como DBeaver o pgAdmin
     ports:
