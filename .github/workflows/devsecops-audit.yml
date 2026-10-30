@@ -150,6 +150,7 @@ jobs:
       - name: Ejecutar Pytest Suite
         env:
           APP_API_KEY: "test-ci-api-key-32chars-minimum-sec"
+          APP_ENCRYPTION_KEY: "test-encryption-key-32-chars-long!"
           ENVIRONMENT: "testing"
           ENABLE_DOCS: "false"
         run: |

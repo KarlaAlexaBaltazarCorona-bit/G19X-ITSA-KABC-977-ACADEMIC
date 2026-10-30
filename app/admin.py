@@ -207,7 +207,9 @@ class ChatMensajeAdmin(ModelView, model=ChatMensaje):
 
 def registrar_admin(app, engine) -> Admin:
     """Crea y monta el panel SQLAdmin en `/admin` con autenticación obligatoria."""
-    secret = settings.APP_ENCRYPTION_KEY or settings.APP_API_KEY or "sqladmin-session-secret-key-2026"
+    secret = settings.APP_ENCRYPTION_KEY
+    if not secret:
+        raise RuntimeError("Falta APP_ENCRYPTION_KEY en el entorno: defínela en .env antes de arrancar.")
     admin_auth = AdminAuth(secret_key=secret)
     admin = Admin(
         app,

@@ -45,7 +45,7 @@ class Settings:
     ENTRA_ALLOWED_TENANTS: str | None = os.getenv("ENTRA_ALLOWED_TENANTS")
 
     # Administración Inicial de la Plataforma
-    INITIAL_ADMIN_EMAIL: str = os.getenv("INITIAL_ADMIN_EMAIL", "isc221977@itsatlixco.edu.mx")
+    INITIAL_ADMIN_EMAIL: str = os.getenv("INITIAL_ADMIN_EMAIL", "")
 
     # Documentación API (Ocultar en producción)
     ENABLE_DOCS: bool = os.getenv("ENABLE_DOCS", "false").lower() in ("true", "1")

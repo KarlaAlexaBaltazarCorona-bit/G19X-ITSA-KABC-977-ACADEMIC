@@ -25,6 +25,12 @@ from main import app
 if not settings.APP_API_KEY:
     settings.APP_API_KEY = "test-ci-api-key-32chars-minimum-sec"
 
+if not getattr(settings, "APP_ENCRYPTION_KEY", None):
+    settings.APP_ENCRYPTION_KEY = "test-encryption-key-32-chars-long!"
+
+if not getattr(settings, "INITIAL_ADMIN_EMAIL", None):
+    settings.INITIAL_ADMIN_EMAIL = "admin@plurione.legaltech.com"
+
 # Neutralizar init_db() en tests para que el arranque de FastAPI no intente conectar a Azure Postgres
 core_db.init_db = lambda: None
 app_main.init_db = lambda: None

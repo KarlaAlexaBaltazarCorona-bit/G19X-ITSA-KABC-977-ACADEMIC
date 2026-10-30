@@ -65,8 +65,7 @@ def verify_api_key(
             return "cookie_authenticated"
 
     expected_key = settings.APP_API_KEY
-    query_key = request.query_params.get("api_key") if request else None
-    effective_api_key = api_key or query_key
+    effective_api_key = api_key  # sólo el encabezado X-API-KEY, nunca la URL
 
     if effective_api_key and expected_key and secrets.compare_digest(effective_api_key, expected_key):
         return effective_api_key
