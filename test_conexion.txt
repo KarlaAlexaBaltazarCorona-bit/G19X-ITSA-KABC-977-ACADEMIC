@@ -1,4 +1,0 @@
-Prueba de conexión SSH exitosa con Deploy Key.
-Fecha: 2026-10-20
-Cuenta: KarlaAlexaBaltazarCorona-bit
-Repositorio: G19X-ITSA-KABC-977-ACADEMIC

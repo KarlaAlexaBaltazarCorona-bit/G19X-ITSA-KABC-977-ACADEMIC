@@ -27,3 +27,13 @@ pendientes.txt
 CheckListrevision.txt
 test_conexion.txt
 *.local.txt
+
+# Local feedback, scripts & generated PDFs
+Retroalimentacion*.html
+retroalimentacion.txt
+check_costs.ps1
+scriptsNOsubir/
+scripts/env_setup.ps1
+scripts/monitor_ci.ps1
+docs/*.pdf
+*.pdf
