@@ -56,48 +56,13 @@ class AzureBlobService:
             try:
                 blob_client = client.get_blob_client(container=container_name, blob=filename)
                 blob_client.upload_blob(content, overwrite=True)
-                try:
-            local_dir = Path(
-"
-local_storage
-"
-) / (container_name or 
-"
-documentos
-"
-)
-            local_dir.mkdir(parents=True, exist_ok=True)
-            (local_dir / Path(filename).name).write_bytes(content)
-        except Exception as e:
-            logger.warning(
-"
-No se pudo guardar copia local de %s: %s
-"
-, filename, e)
-
-        return blob_url
+                return blob_url
             except Exception as e:
                 logger.error("Error al subir blob a Azure Storage: %s", e, exc_info=True)
 
-        try:
-            local_dir = Path(
-"
-local_storage
-"
-) / (container_name or 
-"
-documentos
-"
-)
-            local_dir.mkdir(parents=True, exist_ok=True)
-            (local_dir / Path(filename).name).write_bytes(content)
-        except Exception as e:
-            logger.warning(
-"
-No se pudo guardar copia local de %s: %s
-"
-, filename, e)
-
+        local_dir = Path("local_storage") / (container_name or "documentos")
+        local_dir.mkdir(parents=True, exist_ok=True)
+        (local_dir / Path(filename).name).write_bytes(content)
         return blob_url
 
     @classmethod
