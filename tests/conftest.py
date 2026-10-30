@@ -26,7 +26,7 @@ if not settings.APP_API_KEY:
     settings.APP_API_KEY = "test-ci-api-key-32chars-minimum-sec"
 
 if not getattr(settings, "APP_ENCRYPTION_KEY", None):
-    settings.APP_ENCRYPTION_KEY = "test-encryption-key-32-chars-long!"
+    settings.APP_ENCRYPTION_KEY = "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE="
 
 if not getattr(settings, "INITIAL_ADMIN_EMAIL", None):
     settings.INITIAL_ADMIN_EMAIL = "admin@plurione.legaltech.com"
