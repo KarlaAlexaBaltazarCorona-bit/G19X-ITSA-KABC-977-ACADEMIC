@@ -1,9 +1,9 @@
-# 📋 Matriz de Trazabilidad de Historias de Usuario (HU-01 a HU-17)
+﻿# 📋 Matriz de Trazabilidad de Historias de Usuario (HU-01 a HU-17)
 ## Plataforma de Workflow para Revisión Jurídica (SaaS LegalprojectIA)
 
 **Documento Rector de Referencia:** `Plantilla Historias Usuario.xls (1).xlsx`  
 **Metodología:** Scrum / Ágil  
-**Estado:** 100% Completado y Verificado (58 Pruebas Automatizadas Exitosas)  
+**Estado:** MVP completo; ver el estado del pipeline en el README  
 
 ---
 
@@ -12,8 +12,8 @@
 | Métrica | Valor |
 | :--- | :--- |
 | **Total de Historias de Usuario Oficiales** | 17 (HU-01 a HU-17) |
-| **Historias Implementadas al 100%** | 17 / 17 (100%) |
-| **Pruebas Automatizadas Asociadas** | 58 pruebas unitarias y de integración (`pytest`) |
+| **Historias Implementadas** | 17 / 17 (Completadas) |
+| **Pruebas Automatizadas Asociadas** | Pruebas unitarias y de integración (`pytest`) |
 | **Verificación Estática de Código (SAST)** | Ruff (0 errores), Bandit (Sin vulnerabilidades altas/medias), Semgrep (OWASP Top 10 limpio) |
 | **Despliegue y Aprovisionamiento** | Azure App Service + PostgreSQL Flexible + Azure OpenAI + Azure Doc Intel + Blob Storage |
 

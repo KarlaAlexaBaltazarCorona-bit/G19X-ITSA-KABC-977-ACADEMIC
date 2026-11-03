@@ -51,7 +51,7 @@ Bienvenido al centro neurálgico de documentación técnica, funcional y de oper
 
 ## 🧪 Estado de Pruebas y Certificación de Calidad
 
-- **Pruebas Automatizadas:** 58/58 pruebas superadas (100% éxito en `pytest`).
+- **Pruebas Automatizadas:** `pytest -v`; el resultado de la última ejecución está en la insignia DevSecOps del README.
 - **Análisis de Código Estático (Linter):** 0 advertencias / 0 errores en `ruff check .`.
 - **Análisis de Vulnerabilidades (SAST):** Aprobado con `bandit` y `semgrep`.
 - **Auditoría de Dependencias (CVEs):** Sin vulnerabilidades reportadas en `pip-audit`.

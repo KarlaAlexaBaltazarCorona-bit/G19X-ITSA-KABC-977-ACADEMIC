@@ -1,11 +1,11 @@
-# Guía de Contribución y Arquitectura del Proyecto
+﻿# Guía de Contribución y Arquitectura del Proyecto
 
 ## 📌 Proyecto de Desarrollo de una Plataforma de Workflow para Revisión Jurídica (SaaS)
 **Empresa Patrocinadora:** PluriOne S.A. de C.V. (Develop Talent & Technology)  
 **Institución Académica:** Instituto Tecnológico Superior de Atlixco (ITSA) — Residencia Profesional  
 **Metodología:** Scrum / Ágil  
 **Documento Rector de Requerimientos:** `Plantilla Historias Usuario.xls (1).xlsx` (17 Historias de Usuario Oficiales, HU-01 a HU-17)  
-**Estado Actual:** 🏁 **Etapa Terminal / Listo para Entrega (100% Completado)**  
+**Estado Actual:** 🏁 **MVP completo; ver el estado del pipeline en el README**  
 **URL de Producción:** https://app-legaltech-z5m4thvbo3byk.azurewebsites.net  
 
 ---
@@ -132,7 +132,7 @@ G19X-ITSA-KABC-977-ACADEMIC/
 │   ├── deploy_client_infra.ps1      # Despliegue automatizado en Azure con PowerShell
 │   ├── deploy_client_infra.sh       # Despliegue automatizado en Azure con Bash
 │   └── security_audit.py            # Auditoría local de seguridad
-├── tests/                           # 🧪 Suite de pruebas automáticas (58 pruebas)
+├── tests/                           # 🧪 Suite de pruebas automáticas (Pytest)
 │   ├── conftest.py                  # Fixtures de BD aislada y cliente de pruebas
 │   ├── test_access_control.py       # RBAC, roles, multi-tenant y sesiones
 │   ├── test_ai_legal.py             # Endpoints y mocks de Azure OpenAI
@@ -266,7 +266,7 @@ bandit -r . -x ./.venv,./tests -ll
 # 4. Auditoría de dependencias conocidas contra CVEs (pip-audit)
 pip-audit -r requirements.txt
 
-# 5. Suite completa de 58 pruebas automáticas (Pytest)
+# 5. Suite completa de pruebas automáticas (Pytest)
 python -m pytest -v
 ```
 

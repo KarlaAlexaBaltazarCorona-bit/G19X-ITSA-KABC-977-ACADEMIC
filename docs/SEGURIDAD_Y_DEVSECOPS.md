@@ -1,4 +1,4 @@
-# 🛡️ Guía de Seguridad Corporativa y DevSecOps — LegalprojectIA
+﻿# 🛡️ Guía de Seguridad Corporativa y DevSecOps — LegalprojectIA
 
 **Estándares de Referencia:** OWASP Top 10 (2021/2026), NIST SP 800-53, CIS Microsoft Azure Foundations Benchmark  
 **Objetivo:** Garantizar la confidencialidad, integridad, disponibilidad y no repudio de la información jurídica corporativa gestionada en la plataforma SaaS.
@@ -107,7 +107,7 @@ flowchart LR
     Linter --> Semgrep[2. Semgrep\nOWASP Top 10]
     Semgrep --> Bandit[3. Bandit\nSAST Python]
     Bandit --> PipAudit[4. pip-audit\nCVEs en Dependencias]
-    PipAudit --> Pytest[5. Pytest\n58 Pruebas Unitarias]
+    PipAudit --> Pytest[5. Pytest\nPruebas Unitarias]
     Pytest --> Deploy[🚀 Despliegue Azure App Service]
 ```
 

@@ -1,4 +1,4 @@
-# LegalprojectIA ⚖️🤖
+﻿# LegalprojectIA ⚖️🤖
 
 ### Plataforma Integral de Workflow para Revisión Jurídica y Análisis Documental con Inteligencia Artificial (SaaS)
 
@@ -86,7 +86,7 @@ El repositorio incluye una exhaustiva suite de documentación técnica y operati
 
 - [📘 **Manual de Usuario y Roles**](docs/MANUAL_USUARIO_Y_ROLES.md) — Guía interactiva paso a paso de los 11 módulos del portal y perfiles de acceso.
 - [🏛️ **Arquitectura del Sistema**](docs/ARQUITECTURA_SISTEMA.md) — Diagramas de nube en Azure, modelo C4 de contenedores, máquina de estados BPM y ERD de base de datos.
-- [📋 **Matriz de Historias de Usuario (HU-01 a HU-17)**](docs/MATRIZ_HISTORIAS_USUARIO.md) — Trazabilidad formal de requerimientos, criterios de aceptación y pruebas de verificación al 100%.
+- [📋 **Matriz de Historias de Usuario (HU-01 a HU-17)**](docs/MATRIZ_HISTORIAS_USUARIO.md) — Trazabilidad formal de requerimientos, criterios de aceptación y pruebas de verificación.
 - [📡 **Referencia de la API RESTful (v1)**](docs/API_REFERENCE.md) — Especificación técnica de endpoints, cabeceras, parámetros, payloads y códigos de respuesta.
 - [🛡️ **Seguridad Corporativa y DevSecOps**](docs/SEGURIDAD_Y_DEVSECOPS.md) — Mitigación OWASP Top 10, criptografía AES-256-GCM, pipeline CI/CD y políticas de auditoría.
 - [📦 **Guía de Entrega y Despliegue en Azure**](docs/GUIA_ENTREGA_CLIENTE_AZURE.md) — Procedimiento de aprovisionamiento llave en mano mediante plantillas ARM y Bicep.
