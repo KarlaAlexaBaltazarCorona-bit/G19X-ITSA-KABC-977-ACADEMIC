@@ -1,4 +1,4 @@
-# ═════════════════════════════════════════════════════════════════════════════
+﻿# ═════════════════════════════════════════════════════════════════════════════
 # Dockerfile — LegalTech Workflow API (Producción & Contenedores)
 # Cumple requerimientos del Proyecto de Desarrollo (Sección 2: Docker)
 # ═════════════════════════════════════════════════════════════════════════════
@@ -35,6 +35,7 @@ COPY pyproject.toml .
 COPY alembic.ini .
 
 # Ajustar permisos para el usuario no privilegiado
+RUN mkdir -p /workspace/local_storage
 RUN chown -R appuser:appgroup /workspace
 
 USER appuser

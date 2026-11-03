@@ -1,4 +1,4 @@
-"""Configuración de pruebas: base de datos SQLite en memoria + usuario de prueba.
+﻿"""Configuración de pruebas: base de datos SQLite en memoria + usuario de prueba.
 
 Usar SQLite en pruebas (en vez de Postgres real) tiene dos ventajas:
 1. Cualquier desarrollador puede correr `pytest` sin tener Postgres levantado.
@@ -72,7 +72,6 @@ def mock_external_azure_services():
     from unittest.mock import patch
 
     with (
-        patch("app.services.azure_blob.AzureBlobService.upload_file", return_value="https://test.blob.core.windows.net/test/test.pdf"),
         patch("app.services.azure_doc_intel.DocumentIntelligenceService.extract_clauses_from_pdf", return_value={"texto": "", "clausulas": []}),
         patch("app.services.azure_openai.LegalAIService.clasificar_area", return_value="Civil / Mercantil"),
     ):

@@ -1,4 +1,4 @@
-"""Servicio de Integración con Azure Blob Storage para Repositorio Documental."""
+﻿"""Servicio de Integración con Azure Blob Storage para Repositorio Documental."""
 
 import logging
 import os
@@ -90,17 +90,7 @@ class AzureBlobService:
             except Exception as e:
                 logger.warning("Fallo al descargar blob '%s' vía BlobClient: %s", blob_name, e)
 
-        # 2. Si es URL HTTP/HTTPS y el cliente directo no funcionó, intentar vía HTTP request
-        if filename_or_url.startswith("http://") or filename_or_url.startswith("https://"):
-            try:
-                import requests
-                resp = requests.get(filename_or_url, timeout=10)
-                if resp.status_code == 200:
-                    return resp.content
-            except Exception as e:
-                logger.warning("Fallo al descargar blob vía HTTP desde '%s': %s", filename_or_url, e)
-
-        # 3. Fallback: verificar si es una ruta local existente (pruebas o entorno local)
+        # 2. Respaldo local: verificar si el archivo existe en disco
         local_copy = Path("local_storage") / container_name / Path(blob_name).name
         if local_copy.is_file():
             return local_copy.read_bytes()
@@ -110,6 +100,16 @@ class AzureBlobService:
                     return f.read()
             except Exception as e:
                 logger.warning("Fallo al leer archivo local '%s': %s", filename_or_url, e)
+
+        # 3. Si es URL HTTP/HTTPS y el cliente directo no funcionó, intentar vía HTTP request
+        if filename_or_url.startswith("http://") or filename_or_url.startswith("https://"):
+            try:
+                import requests
+                resp = requests.get(filename_or_url, timeout=10)
+                if resp.status_code == 200:
+                    return resp.content
+            except Exception as e:
+                logger.warning("Fallo al descargar blob vía HTTP desde '%s': %s", filename_or_url, e)
 
         return None
 

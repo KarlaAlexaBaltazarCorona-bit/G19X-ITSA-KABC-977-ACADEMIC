@@ -1,4 +1,4 @@
-# ═════════════════════════════════════════════════════════════════════════════
+﻿# ═════════════════════════════════════════════════════════════════════════════
 # docker-compose.yml — Stack Completo (API FastAPI + PostgreSQL)
 # Cumple requerimientos del Proyecto de Desarrollo (Sección 2: Docker)
 # ═════════════════════════════════════════════════════════════════════════════
@@ -51,6 +51,8 @@ services:
       - APP_API_KEY=${APP_API_KEY:?Define APP_API_KEY en .env}
       - APP_ENCRYPTION_KEY=${APP_ENCRYPTION_KEY:?Define APP_ENCRYPTION_KEY en .env}
       - ENABLE_DOCS=true
+    volumes:
+      - legaltech_docs:/workspace/local_storage
     env_file:
       - path: .env
         required: false
@@ -58,3 +60,5 @@ services:
 volumes:
   legaltech_pgdata:
     name: legaltech-pgdata-volume
+  legaltech_docs:
+    name: legaltech-docs-volume
