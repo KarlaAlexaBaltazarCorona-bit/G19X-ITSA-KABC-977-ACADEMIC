@@ -38,3 +38,4 @@ scripts/monitor_ci.ps1
 docs/*.pdf
 *.pdf
 local_storage/
+backups/
