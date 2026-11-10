@@ -28,7 +28,11 @@ class AzureBlobService:
                 return None
             if settings.AZURE_STORAGE_CONNECTION_STRING:
                 logger.info("Inicializando Azure Blob Storage mediante Connection String.")
-                cls._client = BlobServiceClient.from_connection_string(settings.AZURE_STORAGE_CONNECTION_STRING)
+                try:
+                    cls._client = BlobServiceClient.from_connection_string(settings.AZURE_STORAGE_CONNECTION_STRING)
+                except Exception as e:
+                    logger.error("Cadena de conexión de Blob inválida: %s", e)
+                    return None
             elif settings.AZURE_STORAGE_ACCOUNT_NAME:
                 logger.info("Inicializando Azure Blob Storage mediante Managed Identity (DefaultAzureCredential).")
                 try:

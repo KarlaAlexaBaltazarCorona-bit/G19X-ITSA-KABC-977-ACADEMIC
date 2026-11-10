@@ -24,7 +24,7 @@
 services:
   db:
     image: postgres:16
-    container_name: plastione-postgres-dev
+    container_name: legaltech-postgres-dev
     restart: always
     environment:
       POSTGRES_USER:     legaltech
@@ -43,4 +43,4 @@ services:
 
 volumes:
   pgdata_dev:
-    name: plastione-pgdata-dev
+    name: legaltech-pgdata-dev
