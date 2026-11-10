@@ -55,7 +55,9 @@ def verify_api_key(
     Utiliza comparación en tiempo constante (compare_digest) para evitar Timing Attacks.
     """
     if authorization and authorization.startswith("Bearer "):
-        # Solicitud autenticada con token Bearer
+        token = authorization.split(" ", 1)[1].strip()
+        # Valida firma y formato del token JWT (rechaza tokens falsos/corruptos)
+        _decode_token_claims(token)
         return "bearer_authenticated"
 
     # Verificar si el explorador web tiene una cookie de sesión activa
@@ -363,8 +365,8 @@ def get_current_user(
                 admin_record = db.query(Usuario).filter(Usuario.role == RolUsuario.ADMINISTRADOR_PLATAFORMA).first()
                 if admin_record:
                     admin_id = str(admin_record.id)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("No se pudo resolver el admin en BD para la API Key: %s", e)
             return {
                 "id": admin_id,
                 "nombre": "Servicio de Integración",

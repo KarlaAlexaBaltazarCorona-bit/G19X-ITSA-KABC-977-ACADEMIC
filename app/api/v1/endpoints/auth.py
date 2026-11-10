@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app.core.auth_guard import ROLES_VALIDOS, _decode_token_claims, get_or_create_usuario, verify_api_key
+from app.core.auth_guard import ROLES_VALIDOS, _decode_token_claims, get_or_create_usuario
 from app.core.config import settings
 from app.core.database import get_db
 
@@ -190,21 +190,3 @@ def dev_login(payload: DevLoginRequest, response: Response, db: Session = Depend
         "email": usuario.correo,
         "roles": [usuario.role.value],
     }
-
-
-@router.post("/sanitize-database", summary="Ejecuta saneamiento forzado de base de datos (requiere API Key)")
-def trigger_database_sanitization(
-    db: Session = Depends(get_db),
-    api_key_check: str = Depends(verify_api_key),
-):
-    """Ejecuta de manera controlada el saneamiento de cuentas heredadas y restablece la gobernanza."""
-    try:
-        from app.core.database import seed_initial_admin
-        from app.models.user import Usuario
-
-        seed_initial_admin()
-        usuarios_actuales = [u.correo for u in db.query(Usuario).all()]
-        return {"status": "success", "detail": "Saneamiento de base de datos ejecutado con éxito.", "usuarios_restantes": usuarios_actuales}
-    except Exception as e:
-        import traceback
-        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}

@@ -454,3 +454,26 @@ def test_powerbi_html_requires_auth_and_redirects_browser(client: TestClient):
         if saved_key:
             app.dependency_overrides[verify_api_key] = saved_key
 
+
+def test_sanitize_no_acepta_bearer_falso(client: TestClient):
+    """Verifica que el endpoint de saneamiento ya no exista o rechace tokens Bearer falsos con 401, 403 o 404."""
+    r = client.post("/api/v1/auth/sanitize-database", headers={"Authorization": "Bearer x"})
+    assert r.status_code in (401, 403, 404)
+
+
+def test_verify_api_key_rechaza_bearer_invalido(client: TestClient):
+    """Verifica que verify_api_key no acepte tokens Bearer falsos o corruptos y rechace con 401."""
+    from app.core.auth_guard import get_current_user, verify_api_key
+
+    saved_user = app.dependency_overrides.pop(get_current_user, None)
+    saved_key = app.dependency_overrides.pop(verify_api_key, None)
+    try:
+        r = client.get("/api/info", headers={"Authorization": "Bearer invalid_jwt_token"})
+        assert r.status_code == 401
+    finally:
+        if saved_user:
+            app.dependency_overrides[get_current_user] = saved_user
+        if saved_key:
+            app.dependency_overrides[verify_api_key] = saved_key
+
+
