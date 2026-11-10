@@ -202,10 +202,8 @@ async function firmarDocumento() {
   btn.innerHTML = '⏳ Procesando firma...';
 
   try {
-    const headers = {
-      'Authorization': 'Bearer ' + token,
-      ...(sessionStorage.getItem('plurione_api_key') ? { 'X-API-KEY': sessionStorage.getItem('plurione_api_key') } : {}),
-    };
+    const headers = getAuthHeaders();
+    delete headers['Content-Type'];
 
     /* Paso 1: solicitar firma si no existe */
     await fetch(`/api/v1/signatures/${SOL_ID}/request`, { method:'POST', headers: {...headers,'Content-Type':'application/json'} });
@@ -220,6 +218,7 @@ async function firmarDocumento() {
       const fd = new FormData();
       fd.append('archivo', archivoPDF);
       bodyFirma = fd;
+      delete headersFirma['Content-Type'];
       /* NO poner Content-Type: el navegador lo calcula con el boundary multipart */
     } else {
       /* Sin PDF: firma solo electrónica sin verificación de PDF */
