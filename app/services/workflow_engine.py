@@ -12,6 +12,7 @@ Cubre HU-03 (asignación automática), HU-08/HU-09 (versionado) y las transicion
 import hashlib
 import logging
 
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.audit_helper import registrar_auditoria
@@ -22,6 +23,25 @@ from app.models.version import VersionDocumento
 from app.services.azure_blob import AzureBlobService
 
 logger = logging.getLogger(__name__)
+
+# Matriz formal de transiciones jurídicas permitidas (BPM / Ciclo de vida contractual)
+TRANSICIONES_PERMITIDAS: dict[EstadoSolicitud, set[EstadoSolicitud]] = {
+    EstadoSolicitud.BORRADOR: {EstadoSolicitud.EN_REVISION},
+    EstadoSolicitud.EN_REVISION: {
+        EstadoSolicitud.OBSERVADO,
+        EstadoSolicitud.EN_APROBACION,
+        EstadoSolicitud.RECHAZADO,
+    },
+    EstadoSolicitud.OBSERVADO: {EstadoSolicitud.EN_REVISION},
+    EstadoSolicitud.EN_APROBACION: {
+        EstadoSolicitud.APROBADO,
+        EstadoSolicitud.RECHAZADO,
+        EstadoSolicitud.OBSERVADO,
+    },
+    EstadoSolicitud.APROBADO: {EstadoSolicitud.FIRMADO},
+    EstadoSolicitud.RECHAZADO: set(),
+    EstadoSolicitud.FIRMADO: set(),
+}
 
 
 class WorkflowEngine:
@@ -193,10 +213,31 @@ class WorkflowEngine:
         motivo: str | None = None,
         request=None,
     ) -> SolicitudRevision:
-        """Cambia el estado de una solicitud y deja rastro en la auditoría (HU-05, HU-09, HU-10)."""
-        estado_anterior = solicitud.estado
-        solicitud.estado = nuevo_estado
-        if nuevo_estado in (EstadoSolicitud.APROBADO, EstadoSolicitud.RECHAZADO, EstadoSolicitud.FIRMADO):
+        """Cambia el estado de una solicitud y deja rastro en la auditoría (HU-05, HU-09, HU-10).
+
+        Valida formalmente la máquina de estados jurídicos. Si la transición no es legal
+        según la matriz de ciclo de vida, lanza HTTPException con código 409 Conflict.
+        """
+        estado_actual = (
+            solicitud.estado
+            if isinstance(solicitud.estado, EstadoSolicitud)
+            else EstadoSolicitud(solicitud.estado)
+        )
+        estado_destino = (
+            nuevo_estado
+            if isinstance(nuevo_estado, EstadoSolicitud)
+            else EstadoSolicitud(nuevo_estado)
+        )
+
+        permitidas = TRANSICIONES_PERMITIDAS.get(estado_actual, set())
+        if estado_destino not in permitidas:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Transición no permitida: de {estado_actual.value} a {estado_destino.value}.",
+            )
+
+        solicitud.estado = estado_destino
+        if estado_destino in (EstadoSolicitud.APROBADO, EstadoSolicitud.RECHAZADO, EstadoSolicitud.FIRMADO):
             import datetime as _dt
 
             solicitud.finalizo_at = _dt.datetime.now(_dt.UTC)
@@ -211,8 +252,8 @@ class WorkflowEngine:
             tipo_documento="solicitud",
             id_documento=solicitud.id,
             solicitud_id=solicitud.id,
-            valor_anterior=estado_anterior.value,
-            valor_nuevo=nuevo_estado.value,
+            valor_anterior=estado_actual.value,
+            valor_nuevo=estado_destino.value,
             request=request,
         )
         return solicitud
