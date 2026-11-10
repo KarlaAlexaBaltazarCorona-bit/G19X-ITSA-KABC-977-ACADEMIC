@@ -222,6 +222,26 @@
                     <span id="btn-label">Iniciar sesión con Microsoft</span>
                 </button>
 
+                <!-- Selector para Modo Desarrollo Local (visible si Entra ID no está configurado) -->
+                <div id="dev-login-panel" class="mt-5 pt-4 border-t border-slate-800/80 hidden">
+                    <p class="text-xs text-amber-400 font-semibold mb-1 flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Modo Desarrollo Local
+                    </p>
+                    <p class="text-xs text-slate-400 mb-3 leading-relaxed">Microsoft Entra ID no está configurado en local. Selecciona un rol para ingresar al portal:</p>
+                    <div class="space-y-2.5">
+                        <select id="dev-role-select" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                            <option value="REVISOR_JURIDICO">Revisor Jurídico (REVISOR_JURIDICO)</option>
+                            <option value="APROBADOR_JURIDICO">Aprobador Jurídico (APROBADOR_JURIDICO)</option>
+                            <option value="ADMINISTRADOR_PLATAFORMA">Administrador de Plataforma (ADMINISTRADOR_PLATAFORMA)</option>
+                            <option value="AUDITOR">Auditor de Cumplimiento (AUDITOR)</option>
+                        </select>
+                        <button id="btn-dev-login" type="button" class="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium text-xs py-2.5 px-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+                            <span>Ingresar en Modo Desarrollo</span>
+                        </button>
+                    </div>
+                </div>
+
 
 
                 <!-- Aviso legal de seguridad -->

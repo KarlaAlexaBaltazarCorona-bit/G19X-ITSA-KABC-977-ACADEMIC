@@ -29,6 +29,7 @@
 3. [Matriz de Roles y Control de Acceso (RBAC)](#-matriz-de-roles-y-control-de-acceso-rbac)
 4. [Centro de Documentación Oficial](#-centro-de-documentación-oficial)
 5. [Inicio Rápido (Desarrollo Local)](#-inicio-rápido-desarrollo-local)
+   - [Cómo Entrar en Modo Local / Desarrollo (Dev-Login)](#6-cómo-entrar-en-modo-local--desarrollo-dev-login)
 6. [Despliegue con Contenedores Docker](#-despliegue-con-contenedores-docker)
 7. [Configuración de Microsoft Entra ID (SSO)](#-configuración-de-microsoft-entra-id-sso)
 8. [Integración con Microsoft Power BI](#-integración-con-microsoft-power-bi)
@@ -144,6 +145,37 @@ Puntos de acceso en el explorador:
 - **Dashboard Principal:** [http://localhost:8000/api/v1/app/dashboard](http://localhost:8000/api/v1/app/dashboard)
 - **Documentación Interactiva Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Panel Administrativo ORM:** [http://localhost:8000/admin](http://localhost:8000/admin)
+
+### 6. Cómo Entrar en Modo Local / Desarrollo (Dev-Login)
+
+Cuando la aplicación corre en entorno local con `ENTRA_CLIENT_ID` sin configurar (cadena vacía por omisión en `.env.example`), el sistema habilita el endpoint `POST /api/v1/auth/dev-login` para probar la totalidad de los flujos y pantallas sin necesidad de credenciales de Microsoft Entra ID.
+
+#### Opción A: Desde la Pantalla Web de Login
+1. Abra [http://localhost:8000/login](http://localhost:8000/login).
+2. El sistema detectará automáticamente el entorno local y desplegará el panel **Modo Desarrollo Local**.
+3. Seleccione el rol deseado en la lista desplegable y presione **«Ingresar en Modo Desarrollo»**.
+
+#### Opción B: Mediante Documentación Interactiva (Swagger UI)
+1. Navegue a [http://localhost:8000/docs](http://localhost:8000/docs).
+2. Localice `POST /api/v1/auth/dev-login`.
+3. Haga clic en **«Try it out»** y envíe el cuerpo JSON con uno de los roles autorizados. La respuesta inyectará la cookie de sesión y retornará el token JWT de prueba.
+
+#### Opción C: Mediante `curl` (Consola / Terminal)
+```bash
+curl -c cookies.txt -X POST http://localhost:8000/api/v1/auth/dev-login \
+  -H "Content-Type: application/json" \
+  -d '{"rol": "REVISOR_JURIDICO", "correo": "revisora@ejemplo.com", "nombre": "Ana Revisora"}'
+```
+
+#### Roles Disponibles en Dev-Login
+El endpoint acepta cualquiera de los cuatro roles definidos en la matriz RBAC:
+- `REVISOR_JURIDICO`: Evalúa solicitudes asignadas, genera comentarios y emite dictámenes.
+- `APROBADOR_JURIDICO`: Aprueba o rechaza solicitudes dictaminadas y ejecuta la firma electrónica.
+- `ADMINISTRADOR_PLATAFORMA`: Gestión de usuarios, roles, métricas globales y configuraciones.
+- `AUDITOR`: Acceso de sólo lectura a la bitácora inmutable de trazabilidad y auditoría.
+
+> [!NOTE]
+> `dev-login` reutiliza el mismo identificador de usuario para cada rol. Si desea evaluar el algoritmo de balanceo automático por menor carga entre múltiples revisores (`RN-001`), dé de alta un segundo revisor desde la pantalla de **Usuarios** (`http://localhost:8000/api/v1/app/usuarios`) autenticado como `ADMINISTRADOR_PLATAFORMA` o mediante `python scripts/register_test_user.py`.
 
 ---
 

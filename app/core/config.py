@@ -39,7 +39,7 @@ class Settings:
 
 
     # Microsoft Entra ID (SSO Institucional / Corporativo Multi-Tenant y Cuentas Personales)
-    ENTRA_CLIENT_ID: str | None = os.getenv("ENTRA_CLIENT_ID", "83937a3e-5c1a-4502-adaa-cca4af185fdc")
+    ENTRA_CLIENT_ID: str | None = os.getenv("ENTRA_CLIENT_ID", "")
     ENTRA_TENANT_ID: str = os.getenv("ENTRA_TENANT_ID", "common")
     # Opcional: lista separada por comas de tenant IDs autorizados (whitelist multi-tenant).
     ENTRA_ALLOWED_TENANTS: str | None = os.getenv("ENTRA_ALLOWED_TENANTS")

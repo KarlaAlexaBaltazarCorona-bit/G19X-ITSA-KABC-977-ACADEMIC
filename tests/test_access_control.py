@@ -109,6 +109,23 @@ def test_dev_login_simulation(client: TestClient, db):
         db.commit()
 
 
+def test_dev_login_con_entra_client_id_vacio(client: TestClient, db):
+    """Verifica que dev-login funcione cuando ENTRA_CLIENT_ID está vacío ("") como en .env.example."""
+    try:
+        with patch.object(settings, "ENTRA_CLIENT_ID", ""):
+            res = client.post(
+                "/api/v1/auth/dev-login",
+                json={"rol": "REVISOR_JURIDICO", "correo": "revisor_dev@local.test", "nombre": "Revisor Local"},
+            )
+            assert res.status_code == 200
+            data = res.json()
+            assert data["authenticated"] is True
+            assert "REVISOR_JURIDICO" in data["roles"]
+    finally:
+        db.query(Usuario).filter(Usuario.correo == "revisor_dev@local.test").delete()
+        db.commit()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. PRUEBAS DE CONTROL DE ACCESO POR ROL (RBAC)
 # ─────────────────────────────────────────────────────────────────────────────

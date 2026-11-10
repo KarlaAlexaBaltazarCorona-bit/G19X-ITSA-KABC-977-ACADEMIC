@@ -177,8 +177,12 @@ async function initAuth() {
             await inicializarMSAL(entraConfig.clientId, entraConfig.authority);
             
         } else {
-            // No hay Client ID todavía, mostrar banner explicativo e invitar a conectar
-            showError("Microsoft Entra ID no está configurado en las variables del servidor.");
+            // No hay Client ID todavía (desarrollo local)
+            const devPanel = document.getElementById("dev-login-panel");
+            if (devPanel) {
+                devPanel.classList.remove("hidden");
+            }
+            showInfo("Entorno de desarrollo local detectado (sin Entra ID). Selecciona un rol abajo para ingresar.");
         }
 
         // Garantizar botón activo
@@ -198,7 +202,9 @@ async function loginWithMicrosoft() {
     hideAlerts();
 
     if (!entraConfig.clientId) {
-        showError("El servicio de Microsoft Entra ID no está configurado en el servidor. Contacte al Administrador.");
+        showInfo("Microsoft Entra ID no está configurado en local. Utilice el selector de Modo Desarrollo abajo.");
+        const devPanel = document.getElementById("dev-login-panel");
+        if (devPanel) devPanel.classList.remove("hidden");
         return;
     }
 
@@ -285,10 +291,62 @@ async function loginWithMicrosoft() {
 // ─────────────────────────────────────────────────────────────────────────────
 // ACCESO EN MODO DESARROLLO (SIMULADOR RBAC)
 // ─────────────────────────────────────────────────────────────────────────────
+
+async function executeDevLogin() {
+    hideAlerts();
+    const roleSelect = document.getElementById("dev-role-select");
+    const rol = roleSelect ? roleSelect.value : "REVISOR_JURIDICO";
+    const roleNames = {
+        "REVISOR_JURIDICO": "Abogado Revisor",
+        "APROBADOR_JURIDICO": "Aprobador Jurídico",
+        "ADMINISTRADOR_PLATAFORMA": "Administrador Local",
+        "AUDITOR": "Auditor Interno"
+    };
+    const correo = `${rol.toLowerCase()}@local.dev`;
+    const nombre = roleNames[rol] || "Usuario Desarrollo";
+
+    const devBtn = document.getElementById("btn-dev-login");
+    if (devBtn) {
+        devBtn.disabled = true;
+        devBtn.innerHTML = "<span>Accediendo...</span>";
+    }
+
+    try {
+        const res = await fetch("/api/v1/auth/dev-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rol: rol, correo: correo, nombre: nombre })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            sessionStorage.setItem("plurione_auth_token", data.token);
+            showSuccess(`Sesión iniciada como ${data.name}. Redirigiendo...`);
+            setTimeout(() => {
+                window.location.href = "/api/v1/app/dashboard";
+            }, 600);
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showError(err.detail || "Error al iniciar sesión en modo desarrollo.");
+            if (devBtn) {
+                devBtn.disabled = false;
+                devBtn.innerHTML = "<span>Ingresar en Modo Desarrollo</span>";
+            }
+        }
+    } catch (e) {
+        showError("No se pudo conectar con el endpoint de dev-login.");
+        if (devBtn) {
+            devBtn.disabled = false;
+            devBtn.innerHTML = "<span>Ingresar en Modo Desarrollo</span>";
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // EXPOSICIÓN GLOBAL Y EVENT LISTENERS (100% COMPATIBLES CON CSP STRICT)
 // ─────────────────────────────────────────────────────────────────────────────
 
 window.loginWithMicrosoft = loginWithMicrosoft;
+window.executeDevLogin = executeDevLogin;
 
 function bindEventListeners() {
     const btn = document.getElementById("btn-login");
@@ -296,7 +354,10 @@ function bindEventListeners() {
         btn.disabled = false;
         btn.addEventListener("click", loginWithMicrosoft);
     }
-
+    const devBtn = document.getElementById("btn-dev-login");
+    if (devBtn) {
+        devBtn.addEventListener("click", executeDevLogin);
+    }
 }
 
 function start() {
