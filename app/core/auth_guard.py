@@ -283,8 +283,9 @@ def get_or_create_usuario(db: Session, claims: dict):
     nombre, _, apellido = nombre_completo.partition(" ")
     roles_del_token = [r for r in claims.get("roles", []) if r in ROLES_VALIDOS]
 
-    admin_correo_config = (getattr(settings, "INITIAL_ADMIN_EMAIL", None) or "").lower().strip()
-    es_admin_inicial = bool(admin_correo_config and correo == admin_correo_config)
+    admin_correo_config = (getattr(settings, "INITIAL_ADMIN_EMAIL", None) or "").strip()
+    admin_correos_config = [c.strip().lower() for c in admin_correo_config.split(",") if c.strip()]
+    es_admin_inicial = bool(correo and correo in admin_correos_config)
 
     usuario = None
     if oid:
@@ -356,8 +357,16 @@ def get_current_user(
         # Si se envió una API Key válida y no hay sesión de usuario interactivo,
         # autenticar como cuenta de servicio del sistema con rol de administrador
         if api_key and settings.APP_API_KEY and secrets.compare_digest(api_key, settings.APP_API_KEY):
+            admin_id = "00000000-0000-0000-0000-000000000000"
+            try:
+                from app.models.user import RolUsuario, Usuario
+                admin_record = db.query(Usuario).filter(Usuario.role == RolUsuario.ADMINISTRADOR_PLATAFORMA).first()
+                if admin_record:
+                    admin_id = str(admin_record.id)
+            except Exception:
+                pass
             return {
-                "id": "00000000-0000-0000-0000-000000000000",
+                "id": admin_id,
                 "nombre": "Servicio de Integración",
                 "correo": "system@legaltech.local",
                 "rol": "ADMINISTRADOR_PLATAFORMA",

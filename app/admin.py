@@ -69,14 +69,15 @@ class AdminAuth(AuthenticationBackend):
                 from app.core.auth_guard import _decode_token_claims
                 claims = _decode_token_claims(token)
                 email = (claims.get("preferred_username") or claims.get("email") or claims.get("upn") or "").lower().strip()
-                admin_config = (getattr(settings, "INITIAL_ADMIN_EMAIL", None) or "").lower().strip()
+                admin_config = (getattr(settings, "INITIAL_ADMIN_EMAIL", None) or "").strip()
+                admin_correos = [c.strip().lower() for c in admin_config.split(",") if c.strip()]
 
                 from app.core.database import SessionLocal
                 from app.models.user import RolUsuario, Usuario
                 db = SessionLocal()
                 try:
                     user = db.query(Usuario).filter(Usuario.correo == email).first()
-                    if (user and user.activo and user.role == RolUsuario.ADMINISTRADOR_PLATAFORMA) or (admin_config and email == admin_config):
+                    if (user and user.activo and user.role == RolUsuario.ADMINISTRADOR_PLATAFORMA) or (email in admin_correos):
                         request.session.update({"admin_auth": True, "admin_role": "ADMINISTRADOR_PLATAFORMA", "email": email})
                         return True
                 finally:

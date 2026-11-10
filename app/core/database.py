@@ -102,45 +102,25 @@ def seed_initial_admin() -> None:
 
     db = SessionLocal()
     try:
-        admin_correo = (getattr(settings, "INITIAL_ADMIN_EMAIL", None) or "").lower().strip()
-        if not admin_correo:
+        raw_admin_correos = (getattr(settings, "INITIAL_ADMIN_EMAIL", None) or "").strip()
+        admin_correos = [c.strip().lower() for c in raw_admin_correos.split(",") if c.strip()]
+        if not admin_correos:
             return
 
-        admin_user = db.query(Usuario).filter(Usuario.correo == admin_correo).first()
-        if not admin_user:
-            admin_user = Usuario(
-                objeto_id=f"pending-{admin_correo}",
-                correo=admin_correo,
-                nombre="Administrador",
-                apellido="del Sistema",
-                role=RolUsuario.ADMINISTRADOR_PLATAFORMA,
-                activo=True,
-            )
-            db.add(admin_user)
-        elif admin_user.role != RolUsuario.ADMINISTRADOR_PLATAFORMA:
-            admin_user.role = RolUsuario.ADMINISTRADOR_PLATAFORMA
-
-        # Saneamiento de cuentas residuales previas en la base de datos
-        from sqlalchemy import text
-
-        usuarios_residuales = (
-            db.query(Usuario)
-            .filter(Usuario.correo != admin_correo)
-            .all()
-        )
-        if usuarios_residuales:
-            db.execute(text("UPDATE solicitud_r SET requested_id = :admin_id WHERE requested_id != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("UPDATE solicitud_r SET revicion_id = NULL WHERE revicion_id != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("UPDATE documento SET creado_por = :admin_id WHERE creado_por != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("UPDATE vercion_documento SET actualizado_por = :admin_id WHERE actualizado_por != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("UPDATE revicion SET revizado_id = :admin_id WHERE revizado_id != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("UPDATE comentarios SET user_id = :admin_id WHERE user_id != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("UPDATE auditoria SET user_id = :admin_id WHERE user_id != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("UPDATE firmas SET firmante_id = :admin_id WHERE firmante_id != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("UPDATE workflow_tasks SET revisor_id = :admin_id WHERE revisor_id != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("UPDATE chat_mensajes SET autor_id = :admin_id WHERE autor_id IS NOT NULL AND autor_id != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("DELETE FROM notificaciones WHERE user_id != :admin_id"), {"admin_id": admin_user.id})
-            db.execute(text("DELETE FROM users WHERE id != :admin_id"), {"admin_id": admin_user.id})
+        for correo in admin_correos:
+            admin_user = db.query(Usuario).filter(Usuario.correo == correo).first()
+            if not admin_user:
+                admin_user = Usuario(
+                    objeto_id=f"pending-{correo}",
+                    correo=correo,
+                    nombre="Administrador",
+                    apellido="del Sistema",
+                    role=RolUsuario.ADMINISTRADOR_PLATAFORMA,
+                    activo=True,
+                )
+                db.add(admin_user)
+            elif admin_user.role != RolUsuario.ADMINISTRADOR_PLATAFORMA:
+                admin_user.role = RolUsuario.ADMINISTRADOR_PLATAFORMA
 
         db.commit()
     except Exception as e:
