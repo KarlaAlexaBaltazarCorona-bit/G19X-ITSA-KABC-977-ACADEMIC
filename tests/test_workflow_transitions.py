@@ -121,3 +121,44 @@ def test_endpoint_decision_rechaza_salto_invalido_con_409(client: TestClient, db
     assert response.status_code == 409
     data = response.json()
     assert "Transición no permitida" in data["detail"]
+
+
+def test_assign_reviewer_fallback_to_admin_when_no_revisores(db: Session):
+    """Si no existen usuarios con rol REVISOR_JURIDICO, se asigna con balanceo a un administrador/aprobador activo (resiliencia)."""
+    # Limpiar revisores existentes en sesión
+    db.query(Usuario).filter(Usuario.role == RolUsuario.REVISOR_JURIDICO).delete()
+    db.commit()
+
+    admin = db.query(Usuario).filter(Usuario.role == RolUsuario.ADMINISTRADOR_PLATAFORMA, Usuario.activo == True).first()  # noqa: E712
+    if not admin:
+        admin = Usuario(
+            id=uuid.uuid4(),
+            objeto_id="oid-admin-fallback",
+            correo="admin_fallback@test.local",
+            nombre="Admin Resiliente",
+            role=RolUsuario.ADMINISTRADOR_PLATAFORMA,
+            activo=True,
+        )
+        db.add(admin)
+        db.commit()
+
+    asignado = WorkflowEngine.assign_reviewer(db)
+    assert asignado is not None
+    assert asignado.role in (RolUsuario.ADMINISTRADOR_PLATAFORMA, RolUsuario.APROBADOR_JURIDICO)
+
+
+def test_assign_reviewer_prioritizes_revisores_juridicos(db: Session):
+    """Si existen revisores jurídicos, se les prioriza sobre los administradores."""
+    revisor = Usuario(
+        id=uuid.uuid4(),
+        objeto_id=f"oid-rev-{uuid.uuid4().hex[:6]}",
+        correo=f"revisor_{uuid.uuid4().hex[:6]}@test.local",
+        nombre="Licenciado Titular",
+        role=RolUsuario.REVISOR_JURIDICO,
+        activo=True,
+    )
+    db.add(revisor)
+    db.commit()
+
+    asignado = WorkflowEngine.assign_reviewer(db)
+    assert asignado.role == RolUsuario.REVISOR_JURIDICO

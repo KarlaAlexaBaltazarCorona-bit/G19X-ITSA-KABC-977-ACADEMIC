@@ -32,6 +32,8 @@ test_conexion.txt
 Retroalimentacion*.html
 retroalimentacion.txt
 check_costs.ps1
+azure_logs/
+azure_logs.zip
 scriptsNOsubir/
 scripts/env_setup.ps1
 scripts/monitor_ci.ps1

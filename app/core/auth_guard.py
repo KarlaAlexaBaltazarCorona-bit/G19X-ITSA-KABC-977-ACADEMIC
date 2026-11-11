@@ -362,9 +362,24 @@ def get_current_user(
             admin_id = "00000000-0000-0000-0000-000000000000"
             try:
                 from app.models.user import RolUsuario, Usuario
-                admin_record = db.query(Usuario).filter(Usuario.role == RolUsuario.ADMINISTRADOR_PLATAFORMA).first()
-                if admin_record:
-                    admin_id = str(admin_record.id)
+                admin_record = (
+                    db.query(Usuario)
+                    .filter(Usuario.role == RolUsuario.ADMINISTRADOR_PLATAFORMA, Usuario.activo.is_(True))
+                    .first()
+                )
+                if not admin_record:
+                    admin_record = Usuario(
+                        objeto_id="system-api-key-service-account",
+                        nombre="Servicio",
+                        apellido="del Sistema",
+                        correo="system@plurione.legaltech.com",
+                        role=RolUsuario.ADMINISTRADOR_PLATAFORMA,
+                        activo=True,
+                    )
+                    db.add(admin_record)
+                    db.commit()
+                    db.refresh(admin_record)
+                admin_id = str(admin_record.id)
             except Exception as e:
                 logger.debug("No se pudo resolver el admin en BD para la API Key: %s", e)
             return {

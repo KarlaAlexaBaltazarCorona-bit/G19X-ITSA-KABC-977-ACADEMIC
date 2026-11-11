@@ -80,13 +80,33 @@ class WorkflowEngine:
         que tenga menos solicitudes activas (no BORRADOR, APROBADO, RECHAZADO
         ni FIRMADO) asignadas en `solicitud_r.revicion_id`.
         """
-        revisores = (
+        candidatos = (
             db.query(Usuario).filter(Usuario.role == RolUsuario.REVISOR_JURIDICO, Usuario.activo == True).all()  # noqa: E712
         )
-        if not revisores:
-            raise ValueError(
-                "No hay revisores jurídicos activos disponibles. Registra al menos uno "
-                "desde la Pantalla 13 (Usuarios y funcionarios) antes de asignar solicitudes."
+        if not candidatos:
+            # Resiliencia: si aún no hay revisores jurídicos dedicados dados de alta,
+            # balancear provisionalmente entre los administradores o aprobadores activos
+            candidatos = (
+                db.query(Usuario)
+                .filter(
+                    Usuario.role.in_([RolUsuario.ADMINISTRADOR_PLATAFORMA, RolUsuario.APROBADOR_JURIDICO]),
+                    Usuario.activo == True,  # noqa: E712
+                )
+                .all()
+            )
+            if candidatos:
+                logger.warning(
+                    "No se encontraron revisores jurídicos activos. Asignando provisionalmente la solicitud entre %d usuario(s) administrativo(s)/aprobador(es).",
+                    len(candidatos),
+                )
+
+        if not candidatos:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "No hay revisores jurídicos ni administradores activos disponibles en el sistema. "
+                    "Registra al menos un usuario activo desde la Pantalla 13 (Usuarios y funcionarios) antes de asignar solicitudes."
+                ),
             )
 
         estados_activos = (
@@ -95,16 +115,16 @@ class WorkflowEngine:
             EstadoSolicitud.EN_APROBACION,
         )
         carga_por_revisor = {
-            revisor.id: db.query(SolicitudRevision)
+            candidato.id: db.query(SolicitudRevision)
             .filter(
-                SolicitudRevision.revicion_id == revisor.id,
+                SolicitudRevision.revicion_id == candidato.id,
                 SolicitudRevision.estado.in_(estados_activos),
             )
             .count()
-            for revisor in revisores
+            for candidato in candidatos
         }
-        id_revisor_elegido = min(carga_por_revisor, key=carga_por_revisor.get)
-        return next(r for r in revisores if r.id == id_revisor_elegido)
+        id_elegido = min(carga_por_revisor, key=carga_por_revisor.get)
+        return next(c for c in candidatos if c.id == id_elegido)
 
     @staticmethod
     def iniciar_revision(db: Session, solicitud: SolicitudRevision, usuario: dict, request=None) -> SolicitudRevision:
