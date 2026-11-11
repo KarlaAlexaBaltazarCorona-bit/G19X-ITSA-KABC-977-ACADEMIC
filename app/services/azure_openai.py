@@ -325,7 +325,6 @@ class LegalAIService:
     @classmethod
     def responder_con_contexto(cls, historial: list[dict[str, str]], pregunta: str, contexto_documento: str = "") -> str:
         """Responde una pregunta del panel de chat de IA, con memoria de la conversación."""
-        client = cls.get_client()
         deployment_name = settings.AZURE_OPENAI_DEPLOYMENT_NAME
 
         from app.services.document_extractor import extract_dense_legal_context
@@ -354,6 +353,7 @@ class LegalAIService:
         token_budget = max(settings.AZURE_OPENAI_MAX_TOKENS, 3000)
 
         try:
+            client = cls.get_client()
             response = cls._create_completion(
                 client=client,
                 deployment_name=deployment_name,

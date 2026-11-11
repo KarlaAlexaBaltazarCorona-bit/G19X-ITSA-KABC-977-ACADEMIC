@@ -148,7 +148,13 @@ def test_legal_ai_service_initializes_with_managed_identity():
 
 def test_responder_con_contexto_no_repite_dictamen_estatico_ante_error():
     """Verifica que ante un error en OpenAI, una pregunta puntual NO reciba el dictamen preliminar estático."""
-    with patch.object(LegalAIService, "_create_completion", side_effect=Exception("Timeout en Azure OpenAI")):
+    from unittest.mock import MagicMock
+
+    mock_client = MagicMock()
+    with (
+        patch.object(LegalAIService, "get_client", return_value=mock_client),
+        patch.object(LegalAIService, "_create_completion", side_effect=Exception("Timeout en Azure OpenAI")),
+    ):
         respuesta = LegalAIService.responder_con_contexto(
             historial=[],
             pregunta="el documento es realmente un convenio?",
@@ -156,6 +162,22 @@ def test_responder_con_contexto_no_repite_dictamen_estatico_ante_error():
         )
         assert "Dictamen y Auditoría Preliminar" not in respuesta
         assert "Se presentó una eventualidad técnica" in respuesta
+
+
+def test_responder_con_contexto_sin_endpoint_configurado():
+    """Verifica manejo graceful cuando el endpoint de Azure OpenAI no está configurado."""
+    with patch.object(settings, "AZURE_OPENAI_ENDPOINT", None):
+        original_client = LegalAIService._client
+        try:
+            LegalAIService._client = None
+            respuesta = LegalAIService.responder_con_contexto(
+                historial=[],
+                pregunta="el documento es realmente un convenio?",
+                contexto_documento="Texto del documento con mas de 60 caracteres para prueba",
+            )
+            assert "Se presentó una eventualidad técnica" in respuesta
+        finally:
+            LegalAIService._client = original_client
 
 
 def test_create_completion_garantiza_presupuesto_para_modelos_de_razonamiento():
