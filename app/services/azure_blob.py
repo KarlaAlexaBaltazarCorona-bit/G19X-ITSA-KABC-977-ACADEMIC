@@ -87,7 +87,7 @@ class AzureBlobService:
         client = cls.get_client()
         if client and hasattr(client, "credential") and hasattr(client.credential, "account_key") and client.credential.account_key:
             try:
-                from datetime import datetime, timedelta, timezone
+                from datetime import UTC, datetime, timedelta
                 from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 
                 account_name = getattr(client, "account_name", None) or settings.AZURE_STORAGE_ACCOUNT_NAME
@@ -97,7 +97,7 @@ class AzureBlobService:
                     blob_name=blob_name,
                     account_key=client.credential.account_key,
                     permission=BlobSasPermissions(read=True),
-                    expiry=datetime.now(timezone.utc) + timedelta(hours=expiry_hours),
+                    expiry=datetime.now(UTC) + timedelta(hours=expiry_hours),
                 )
                 return f"https://{account_name}.blob.core.windows.net/{container_name}/{blob_name}?{sas}"
             except Exception as e:

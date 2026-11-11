@@ -148,8 +148,6 @@ def test_legal_ai_service_initializes_with_managed_identity():
 
 def test_responder_con_contexto_no_repite_dictamen_estatico_ante_error():
     """Verifica que ante un error en OpenAI, una pregunta puntual NO reciba el dictamen preliminar estático."""
-    from unittest.mock import MagicMock
-
     with patch.object(LegalAIService, "_create_completion", side_effect=Exception("Timeout en Azure OpenAI")):
         respuesta = LegalAIService.responder_con_contexto(
             historial=[],
@@ -178,6 +176,7 @@ def test_create_completion_garantiza_presupuesto_para_modelos_de_razonamiento():
         messages=[{"role": "user", "content": "test"}],
         max_tokens=500,  # Intentar pasar 500
     )
+    assert res.choices[0].message.content == "Respuesta legal analítica."
 
     call_kwargs = mock_client.chat.completions.create.call_args[1]
     # Debe haber sido ajustado automáticamente a al menos 2500 para evitar que razonamiento consuma todo
