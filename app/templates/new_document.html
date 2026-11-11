@@ -158,14 +158,15 @@ async function enviarFormulario(enviarARevision) {
 
     if (res.ok) {
       const data = await res.json().catch(() => ({}));
-      const msg = enviarARevision
-        ? `Solicitud ${data.numero_respuesta || ''} enviada a revisión. Redirigiendo...`
+      const msg = data.estado === 'EN_REVISION'
+        ? `Solicitud ${data.numero_respuesta || ''} enviada a revisión jurídica con éxito. Redirigiendo...`
         : `Solicitud ${data.numero_respuesta || ''} guardada en borrador. Redirigiendo...`;
       mostrarAlerta('success', msg);
       setTimeout(() => window.location.href = '/api/v1/app/solicitudes', 1200);
     } else {
       const err = await res.json().catch(() => ({}));
-      mostrarAlerta('error', err.detail || 'No se pudo crear la solicitud.');
+      const detalle = err.detail ? (typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)) : 'No se pudo crear la solicitud.';
+      mostrarAlerta('error', detalle);
       btnActive.disabled = false;
       btnOther.disabled = false;
       btnActive.innerHTML = textoOriginal;

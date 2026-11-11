@@ -69,7 +69,11 @@ class WorkflowEngine:
             total = db.query(SolicitudRevision).count()
             consecutivo = total + 1
 
-        return f"{prefijo}{consecutivo:04d}"
+        folio = f"{prefijo}{consecutivo:04d}"
+        while db.query(SolicitudRevision).filter(SolicitudRevision.numero_respuesta == folio).first() is not None:
+            consecutivo += 1
+            folio = f"{prefijo}{consecutivo:04d}"
+        return folio
 
     @staticmethod
     def assign_reviewer(db: Session) -> Usuario:
@@ -101,11 +105,15 @@ class WorkflowEngine:
                 )
 
         if not candidatos:
+            # Respaldo final: cualquier usuario activo en el sistema
+            candidatos = db.query(Usuario).filter(Usuario.activo == True).all()  # noqa: E712
+
+        if not candidatos:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    "No hay revisores jurídicos ni administradores activos disponibles en el sistema. "
-                    "Registra al menos un usuario activo desde la Pantalla 13 (Usuarios y funcionarios) antes de asignar solicitudes."
+                    "No hay usuarios activos disponibles en el sistema para asignar la revisión. "
+                    "Registra o activa al menos un usuario desde la Pantalla 13 (Usuarios y funcionarios)."
                 ),
             )
 
@@ -128,20 +136,38 @@ class WorkflowEngine:
 
     @staticmethod
     def iniciar_revision(db: Session, solicitud: SolicitudRevision, usuario: dict, request=None) -> SolicitudRevision:
-        """Asigna revisor automáticamente a una solicitud recién creada y la pasa a EN_REVISION."""
-        revisor = WorkflowEngine.assign_reviewer(db)
-        solicitud.revicion_id = revisor.id
+        """Asigna revisor (o mantiene el existente si ya tenía uno activo) y pasa la solicitud a EN_REVISION."""
+        revisor = None
+        if solicitud.revicion_id:
+            revisor = db.query(Usuario).filter(Usuario.id == solicitud.revicion_id, Usuario.activo == True).first()  # noqa: E712
+
+        if not revisor:
+            revisor = WorkflowEngine.assign_reviewer(db)
+            solicitud.revicion_id = revisor.id
+
+        estado_anterior = (
+            solicitud.estado.value
+            if isinstance(solicitud.estado, EstadoSolicitud)
+            else str(solicitud.estado)
+        )
         solicitud.estado = EstadoSolicitud.EN_REVISION
         db.commit()
         db.refresh(solicitud)
 
+        accion_txt = (
+            f"Reenvió la solicitud a revisión jurídica con {revisor.nombre_completo} tras solventar observaciones."
+            if estado_anterior == EstadoSolicitud.OBSERVADO.value
+            else f"Asignó automáticamente la solicitud a {revisor.nombre_completo} para revisión."
+        )
+
         registrar_auditoria(
             db,
             usuario,
-            accion=f"Asignó automáticamente la solicitud a {revisor.nombre_completo} para revisión.",
+            accion=accion_txt,
             tipo_documento="solicitud",
             id_documento=solicitud.id,
             solicitud_id=solicitud.id,
+            valor_anterior=estado_anterior,
             valor_nuevo=EstadoSolicitud.EN_REVISION.value,
             request=request,
         )

@@ -115,8 +115,9 @@ async function cargarDetalle() {
     /* Acciones según rol y estado */
     const acciones = [];
 
-    if (s.estado === 'BORRADOR' && ['REVISOR_JURIDICO', 'APROBADOR_JURIDICO', 'ADMINISTRADOR_PLATAFORMA'].includes(ROL)) {
-      acciones.push(`<button onclick="enviarABorrador()" class="btn btn-primary btn-block" style="justify-content:flex-start"><i data-lucide="send" class="icon" style="width:16px;height:16px"></i> Enviar a revisión jurídica</button>`);
+    if (['BORRADOR', 'OBSERVADO'].includes(s.estado) && ['REVISOR_JURIDICO', 'APROBADOR_JURIDICO', 'ADMINISTRADOR_PLATAFORMA'].includes(ROL)) {
+      const btnLabel = s.estado === 'OBSERVADO' ? 'Reenviar a revisión jurídica (solventada)' : 'Enviar a revisión jurídica';
+      acciones.push(`<button onclick="enviarARevisionJuridica()" class="btn btn-primary btn-block" style="justify-content:flex-start"><i data-lucide="send" class="icon" style="width:16px;height:16px"></i> ${btnLabel}</button>`);
     }
 
     if(['REVISOR_JURIDICO','ADMINISTRADOR_PLATAFORMA'].includes(ROL) && s.estado !== 'BORRADOR')
@@ -201,7 +202,7 @@ function renderStepper(estado) {
   if (window.lucide) lucide.createIcons();
 }
 
-async function enviarABorrador() {
+async function enviarARevisionJuridica() {
   if (!confirm('¿Deseas enviar esta solicitud formalmente al flujo de revisión jurídica?')) return;
   try {
     const res = await apiPost(`/api/v1/solicitudes/${SOL_ID}/enviar`);
@@ -209,13 +210,14 @@ async function enviarABorrador() {
       alert('Solicitud enviada a revisión jurídica con éxito.');
       await cargarDetalle();
     } else {
-      const errorMsg = (res && res.detail) ? res.detail : 'Error al procesar la solicitud.';
+      const errorMsg = (res && res.detail) ? (typeof res.detail === 'string' ? res.detail : JSON.stringify(res.detail)) : 'Error al procesar la solicitud.';
       alert('No se pudo enviar la solicitud: ' + errorMsg);
     }
   } catch(e) {
     alert('Error al enviar la solicitud: ' + (e.message || e));
   }
 }
+const enviarABorrador = enviarARevisionJuridica;
 
 function copiarIdContrato() {
   const id = SOL_ID;

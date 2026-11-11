@@ -128,3 +128,70 @@ def test_crear_solicitud_como_borrador_y_enviar_despues(client: TestClient, db):
     resp_reintento = client.post(f"/api/v1/solicitudes/{solicitud_id}/enviar")
     assert resp_reintento.status_code == 400
 
+
+def test_enviar_solicitud_observada_a_revision(client: TestClient, db):
+    """Una solicitud en estado OBSERVADO puede volver a enviarse a EN_REVISION."""
+    import uuid
+    from app.models.solicitud import EstadoSolicitud, SolicitudRevision
+    from app.models.user import RolUsuario, Usuario
+
+    revisor = db.query(Usuario).filter(Usuario.role == RolUsuario.REVISOR_JURIDICO).first()
+    if not revisor:
+        revisor = Usuario(
+            id=uuid.uuid4(),
+            objeto_id="oid-revisor-obs",
+            nombre="Abogado",
+            apellido="Observador",
+            correo="revisor_obs@test.local",
+            role=RolUsuario.REVISOR_JURIDICO,
+            activo=True,
+        )
+        db.add(revisor)
+        db.commit()
+
+    sol = SolicitudRevision(
+        id=uuid.uuid4(),
+        numero_respuesta="EXP-2026-9998",
+        titulo="Contrato con Observaciones",
+        tipo_documento="contrato",
+        requested_id=revisor.id,
+        revicion_id=revisor.id,
+        estado=EstadoSolicitud.OBSERVADO,
+    )
+    db.add(sol)
+    db.commit()
+
+    resp = client.post(f"/api/v1/solicitudes/{sol.id}/enviar")
+    assert resp.status_code == 200
+    assert resp.json()["estado"] == "EN_REVISION"
+    assert resp.json()["revicion_id"] == str(revisor.id)
+
+
+def test_impedir_agregar_documentos_a_solicitud_rechazada(client: TestClient, db):
+    """No se permite cargar nuevos documentos ni versiones a un expediente rechazado."""
+    import io
+    import uuid
+    from app.models.solicitud import EstadoSolicitud, SolicitudRevision
+    from app.models.user import Usuario
+
+    user = db.query(Usuario).first()
+    sol = SolicitudRevision(
+        id=uuid.uuid4(),
+        numero_respuesta="EXP-2026-9999",
+        titulo="Contrato Rechazado Definitivo",
+        tipo_documento="contrato",
+        requested_id=user.id,
+        estado=EstadoSolicitud.RECHAZADO,
+    )
+    db.add(sol)
+    db.commit()
+
+    archivo_fake = ("anexo.pdf", io.BytesIO(b"Fake PDF"), "application/pdf")
+    resp = client.post(
+        f"/api/v1/documents/{sol.id}/documentos",
+        params={"nombre": "Anexo Rechazado", "tipo_documento": "anexo"},
+        files={"archivo": archivo_fake},
+    )
+    assert resp.status_code == 400
+    assert "estado terminal" in resp.json()["detail"]
+

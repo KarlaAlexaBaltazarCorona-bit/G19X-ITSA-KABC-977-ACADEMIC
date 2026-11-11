@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.roles_guard import requiere_roles
 from app.models.document import Documento
-from app.models.solicitud import SolicitudRevision
+from app.models.solicitud import EstadoSolicitud, SolicitudRevision
 from app.models.user import RolUsuario
 from app.schemas.document import DocumentResponse, VersionDocumentoResponse
 from app.services.workflow_engine import WorkflowEngine
@@ -70,6 +70,11 @@ async def add_document(
     solicitud = db.query(SolicitudRevision).get(solicitud_id)
     if not solicitud:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada.")
+    if solicitud.estado in (EstadoSolicitud.RECHAZADO, EstadoSolicitud.FIRMADO):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"No se pueden agregar documentos a una solicitud en estado terminal ({solicitud.estado.value}).",
+        )
 
     documento = Documento(solicitud_id=solicitud_id, nombre=nombre, tipo_documento=tipo_documento, creado_por=usuario["id"])
     db.add(documento)
@@ -133,6 +138,13 @@ async def add_document_version(
     documento = db.query(Documento).get(documento_id)
     if not documento:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Documento no encontrado.")
+
+    solicitud = db.query(SolicitudRevision).get(documento.solicitud_id)
+    if solicitud and solicitud.estado in (EstadoSolicitud.RECHAZADO, EstadoSolicitud.FIRMADO):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"No se pueden subir nuevas versiones a una solicitud en estado terminal ({solicitud.estado.value}).",
+        )
 
     contenido = await archivo.read()
     nueva_version = WorkflowEngine.guardar_version_si_cambio(

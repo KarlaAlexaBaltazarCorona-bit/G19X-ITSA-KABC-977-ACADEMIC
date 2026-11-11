@@ -142,8 +142,17 @@ async def create_solicitud(
             solicitud_id=solicitud.id,
             request=request,
         )
-        # HU-03: asignación automática de revisor jurídico.
-        WorkflowEngine.iniciar_revision(db, solicitud, usuario, request=request)
+        try:
+            # HU-03: asignación automática de revisor jurídico.
+            WorkflowEngine.iniciar_revision(db, solicitud, usuario, request=request)
+        except Exception as e_rev:
+            logger.warning(
+                "No se pudo asignar revisor automáticamente al crear la solicitud: %s. La solicitud permanecerá en BORRADOR.",
+                e_rev,
+            )
+            solicitud.estado = EstadoSolicitud.BORRADOR
+            db.commit()
+            db.refresh(solicitud)
     else:
         registrar_auditoria(
             db,
@@ -175,7 +184,7 @@ def get_solicitud(
 @router.post(
     "/{solicitud_id}/enviar",
     response_model=SolicitudResponse,
-    summary="Enviar una solicitud en borrador al flujo de revisión jurídica",
+    summary="Enviar una solicitud en borrador u observada al flujo de revisión jurídica",
 )
 def enviar_solicitud_a_revision(
     solicitud_id: uuid.UUID,
@@ -183,16 +192,17 @@ def enviar_solicitud_a_revision(
     usuario: dict = Depends(requiere_roles(*ROLES_CREACION)),
     request: Request = None,
 ):
-    """Pasa una solicitud de BORRADOR a EN_REVISION y dispara la asignación automática (HU-01, HU-03, RF-003)."""
+    """Pasa una solicitud de BORRADOR u OBSERVADO a EN_REVISION y asegura la asignación de revisor (HU-01, HU-03, RF-003)."""
     solicitud = db.get(SolicitudRevision, solicitud_id)
     if not solicitud:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada.")
     if not _puede_ver_solicitud(usuario, solicitud):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "No tienes acceso a esta solicitud.")
-    if solicitud.estado != EstadoSolicitud.BORRADOR:
+    if solicitud.estado not in (EstadoSolicitud.BORRADOR, EstadoSolicitud.OBSERVADO):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"La solicitud ya se encuentra en estado {solicitud.estado.value} y no puede enviarse nuevamente.",
+            f"La solicitud ya se encuentra en estado {solicitud.estado.value} y no puede enviarse a revisión. "
+            "Solo solicitudes en BORRADOR u OBSERVADO pueden ser enviadas a revisión jurídica.",
         )
     return WorkflowEngine.iniciar_revision(db, solicitud, usuario, request=request)
 
