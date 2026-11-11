@@ -98,7 +98,7 @@ function renderTimeline(items) {
       </div>
       <div class="tl-body">
         <div>
-          <strong>${(e.user_id || e.usuario_id)?.slice(0,8)||'—'}...</strong>
+          <strong>${e.user_id?.slice(0,8)||'—'}...</strong>
           <span class="faint" style="font-size:.78rem;"> · ${e.tipo_documento}</span>
         </div>
         <div style="font-size:.87rem;color:var(--ink-soft);margin-top:.15rem;">${e.accion}</div>
