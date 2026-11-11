@@ -60,10 +60,13 @@ def verify_api_key(
         _decode_token_claims(token)
         return "bearer_authenticated"
 
-    # Verificar si el explorador web tiene una cookie de sesión activa
+    # Verificar si el explorador web tiene una cookie de sesión activa o token en query param
     if request:
         cookie_token = request.cookies.get("plurione_auth_token") or request.cookies.get("access_token")
+        if not cookie_token and hasattr(request, "query_params") and "token" in request.query_params:
+            cookie_token = request.query_params.get("token")
         if cookie_token:
+            _decode_token_claims(cookie_token)
             return "cookie_authenticated"
 
     expected_key = settings.APP_API_KEY
@@ -354,6 +357,8 @@ def get_current_user(
         token = authorization.split(" ", 1)[1].strip()
     elif request:
         token = request.cookies.get("plurione_auth_token") or request.cookies.get("access_token")
+        if not token and hasattr(request, "query_params") and "token" in request.query_params:
+            token = request.query_params.get("token")
 
     if not token:
         # Si se envió una API Key válida y no hay sesión de usuario interactivo,

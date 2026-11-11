@@ -101,6 +101,19 @@ async function cargarDetalle() {
       fila('Creado', s.creado_at ? s.creado_at.slice(0,10) : '—') +
       fila('Actualizado', s.actualizado_at ? s.actualizado_at.slice(0,10) : '—');
 
+    try {
+      const docs = await apiGet(`/api/v1/documents/${SOL_ID}`).catch(() => []);
+      if (docs && docs.length > 0) {
+        const token = sessionStorage.getItem('plurione_auth_token') || '';
+        const dl = `/api/v1/documents/detalle/${docs[0].id}/download` + (token ? `?token=${encodeURIComponent(token)}` : '');
+        document.getElementById('info-general').innerHTML += fila(
+          'Documento adjunto',
+          `<a href="${dl}" target="_blank" class="cell-link" style="display:inline-flex;align-items:center;gap:4px;"><i data-lucide="download" style="width:13px;height:13px;"></i> ${docs[0].nombre}</a>`
+        );
+        if (window.lucide) lucide.createIcons();
+      }
+    } catch (_) {}
+
     /* Participantes */
     document.getElementById('participantes').innerHTML = `
       <div class="flex items-center gap-3" style="margin-bottom:.7rem">

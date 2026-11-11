@@ -27,3 +27,27 @@ def test_respaldo_local_cadena_azure_invalida(tmp_path, monkeypatch):
 
     assert AzureBlobService.download_file(ubicacion) == b"%PDF-acuerdo-contenido-local"
 
+
+def test_generate_sas_url_sin_credenciales(monkeypatch):
+    """Verifica que sin cliente con account_key, generate_sas_url retorne None sin tronar."""
+    monkeypatch.setattr(settings, "AZURE_STORAGE_CONNECTION_STRING", None, raising=False)
+    monkeypatch.setattr(settings, "AZURE_STORAGE_ACCOUNT_NAME", None, raising=False)
+    AzureBlobService._client = None
+
+    sas = AzureBlobService.generate_sas_url("test-blob.pdf")
+    assert sas is None
+
+
+def test_download_file_limpieza_querystring(tmp_path, monkeypatch):
+    """Verifica que download_file limpie querystrings al buscar blobs locales o en Azure."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(settings, "AZURE_STORAGE_CONNECTION_STRING", None, raising=False)
+    monkeypatch.setattr(settings, "AZURE_STORAGE_ACCOUNT_NAME", None, raising=False)
+    AzureBlobService._client = None
+
+    ubicacion = AzureBlobService.upload_file("test-qs.pdf", b"%PDF-qs-test")
+    url_con_qs = f"{ubicacion}?sig=fake123&se=2026-12-31"
+
+    assert AzureBlobService.download_file(url_con_qs) == b"%PDF-qs-test"
+
+

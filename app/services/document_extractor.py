@@ -177,21 +177,25 @@ def get_document_text_for_solicitud(db: Session, solicitud_id: uuid.UUID) -> str
     return ""
 
 
-def extract_dense_legal_context(text: str, max_chars: int = 1800) -> str:
-    """Extrae un extracto denso y de alto valor legal del documento (partes, objeto, penas, vigencia)
-    garantizando que el prompt quepa holgadamente dentro de cuotas estrictas de tokens (ej. 1000 TPM).
+def extract_dense_legal_context(text: str, max_chars: int = 10000) -> str:
+    """Extrae un extracto estructurado y de alto valor legal del documento (partes, objeto, penas, vigencia)
+    optimizando el contexto enviado a modelos de IA avanzados (como gpt-5-mini).
     """
     if not text or len(text) <= max_chars:
         return text
 
-    # 1. Tomar encabezado y declaraciones iniciales (primeros 700 caracteres)
-    partes = [text[:700].strip()]
+    # 1. Tomar encabezado, proemio y declaraciones iniciales (primeros 2500 caracteres)
+    partes = [text[:2500].strip()]
 
     # 2. Buscar fragmentos clave mediante palabras jurídicas críticas
-    palabras_clave = ("pena", "sanci", "vigencia", "plazo", "rescisi", "jurisdicci", "monto", "pago")
+    palabras_clave = (
+        "pena", "sanci", "vigencia", "plazo", "rescisi", "jurisdicci",
+        "monto", "pago", "obligaci", "convenio", "acuerdo", "incumplimiento",
+        "responsabilidad", "confidencial", "terminaci"
+    )
     parrafos = text.split("\n")
     parrafos_clave = []
-    longitud_acumulada = 700
+    longitud_acumulada = 2500
 
     for p in parrafos:
         p_clean = p.strip()
@@ -199,14 +203,17 @@ def extract_dense_legal_context(text: str, max_chars: int = 1800) -> str:
             continue
         p_lower = p_clean.lower()
         if any(kw in p_lower for kw in palabras_clave):
-            if longitud_acumulada + len(p_clean) < max_chars:
+            if longitud_acumulada + len(p_clean) < max_chars - 1500:
                 parrafos_clave.append(p_clean)
                 longitud_acumulada += len(p_clean)
 
     if parrafos_clave:
         partes.append("\n[... EXTRACTO DE CLÁUSULAS CRÍTICAS DETECTADAS ...]\n" + "\n".join(parrafos_clave))
-    else:
-        partes.append("\n[... CIERRE DEL DOCUMENTO ...]\n" + text[-600:].strip())
+
+    # 3. Adjuntar cierre del documento (firmas / jurisdicción)
+    cierre = text[-1200:].strip()
+    if cierre and cierre not in partes[0]:
+        partes.append("\n[... CIERRE Y FIRMAS DEL INSTRUMENTO ...]\n" + cierre)
 
     return "\n\n".join(partes)
 

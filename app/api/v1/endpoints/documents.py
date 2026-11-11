@@ -9,6 +9,7 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -16,7 +17,9 @@ from app.core.roles_guard import requiere_roles
 from app.models.document import Documento
 from app.models.solicitud import EstadoSolicitud, SolicitudRevision
 from app.models.user import RolUsuario
+from app.models.version import VersionDocumento
 from app.schemas.document import DocumentResponse, VersionDocumentoResponse
+from app.services.azure_blob import AzureBlobService
 from app.services.workflow_engine import WorkflowEngine
 
 logger = logging.getLogger(__name__)
@@ -167,3 +170,94 @@ async def add_document_version(
     except Exception as e:
         logger.warning("Fallo al pre-cachear texto en version upload: %s", e)
     return nueva_version
+
+
+@router.get(
+    "/versions/{version_id}/download",
+    summary="Descargar archivo físico de una versión específica",
+    description="Permite descargar de forma segura un archivo sin incurrir en errores de PublicAccessNotPermitted de Azure Blob Storage.",
+)
+def download_document_version(
+    version_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    usuario: dict = Depends(requiere_roles(*ROLES_TODOS)),
+):
+    """Descarga de forma autenticada el archivo físico asociado a una versión específica."""
+    version = db.query(VersionDocumento).filter(VersionDocumento.id == version_id).first()
+    if not version:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Versión de documento no encontrada.")
+
+    contenido = AzureBlobService.download_file(version.ubicacion)
+    if not contenido:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "El archivo digital no se encuentra disponible en el repositorio de almacenamiento.",
+        )
+
+    # Determinar Content-Type
+    media_type = version.formato_archivo or "application/octet-stream"
+    if not media_type or media_type.lower() in ("string", "null", "undefined"):
+        nombre_lower = version.nombre_archivo.lower()
+        if nombre_lower.endswith(".pdf"):
+            media_type = "application/pdf"
+        elif nombre_lower.endswith(".docx"):
+            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        elif nombre_lower.endswith(".doc"):
+            media_type = "application/msword"
+        else:
+            media_type = "application/octet-stream"
+
+    nombre_seguro = version.nombre_archivo.replace('"', '').replace('\n', '').replace('\r', '')
+
+    return Response(
+        content=contenido,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{nombre_seguro}"',
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
+@router.get(
+    "/detalle/{documento_id}/download",
+    summary="Descargar archivo físico de la última versión de un documento",
+)
+def download_document_latest(
+    documento_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    usuario: dict = Depends(requiere_roles(*ROLES_TODOS)),
+):
+    """Descarga la versión más reciente de un documento."""
+    documento = db.query(Documento).filter(Documento.id == documento_id).first()
+    if not documento:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Documento no encontrado.")
+
+    ultima_version = (
+        db.query(VersionDocumento)
+        .filter(VersionDocumento.documento_id == documento_id)
+        .order_by(VersionDocumento.numero_version.desc())
+        .first()
+    )
+    if not ultima_version:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "El documento no tiene versiones registradas.")
+
+    return download_document_version(version_id=ultima_version.id, db=db, usuario=usuario)
+
+
+@router.get(
+    "/solicitud/{solicitud_id}/download",
+    summary="Descargar el documento principal de una solicitud",
+)
+def download_solicitud_document(
+    solicitud_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    usuario: dict = Depends(requiere_roles(*ROLES_TODOS)),
+):
+    """Descarga el primer documento adjunto de una solicitud."""
+    doc = db.query(Documento).filter(Documento.solicitud_id == solicitud_id).first()
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "La solicitud no contiene documentos adjuntos.")
+
+    return download_document_latest(documento_id=doc.id, db=db, usuario=usuario)
+

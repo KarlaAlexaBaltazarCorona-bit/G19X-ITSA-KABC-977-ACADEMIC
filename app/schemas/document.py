@@ -37,6 +37,8 @@ class VersionDocumentoResponse(BaseModel):
     numero_version: int
     nombre_archivo: str
     ubicacion: str
+    download_url: str | None = None
+    sas_url: str | None = None
     tamano_archivo: int | None = None
     formato_archivo: str | None = None
     actualizado_por: uuid.UUID

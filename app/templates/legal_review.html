@@ -39,6 +39,11 @@
         <i data-lucide="file-text" style="width:36px;height:36px;color:var(--navy-600)"></i>
         <span style="font-size:.88rem;font-weight:500;" id="doc-nombre-texto">Consultando documento asociado...</span>
         <div id="doc-meta" style="font-size:.78rem;color:var(--ink-soft);"></div>
+        <div id="doc-download-container" style="margin-top:0.4rem;display:none;">
+          <a id="btn-descargar-doc" href="#" target="_blank" class="btn btn-outline btn-sm">
+            <i data-lucide="download" class="icon" style="width:14px;height:14px;"></i> Descargar archivo
+          </a>
+        </div>
       </div>
     </div>
 
@@ -167,6 +172,15 @@ async function cargarRevision() {
       if (vers && vers.length > 0) {
         VERSION_DOC_ID = vers[0].id;
         document.getElementById('doc-meta').innerHTML += ` · <span class="badge badge-gray" style="font-size:0.72rem;">Versión ${vers[0].numero_version}</span>`;
+        const c = document.getElementById('doc-download-container');
+        const b = document.getElementById('btn-descargar-doc');
+        if (c && b) {
+          const token = sessionStorage.getItem('plurione_auth_token') || '';
+          const dl = vers[0].download_url || `/api/v1/documents/versions/${vers[0].id}/download`;
+          b.href = token ? `${dl}?token=${encodeURIComponent(token)}` : dl;
+          c.style.display = 'block';
+          if (window.lucide) lucide.createIcons();
+        }
       }
     } else {
       document.getElementById('doc-nombre-texto').textContent = 'Solicitud sin archivo adjunto cargado.';

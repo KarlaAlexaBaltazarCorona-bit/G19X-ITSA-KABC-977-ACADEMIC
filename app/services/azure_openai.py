@@ -56,7 +56,8 @@ class LegalAIService:
     @classmethod
     def _create_completion(cls, client: AzureOpenAI, deployment_name: str, messages: list[dict], max_tokens: int | None = None):
         """Envía peticiones de chat completions adaptándose automáticamente entre modelos GPT y o1/o3/gpt-5,
-        e implementando reintentos con backoff exponencial ante respuestas 429 (Rate Limit de Azure).
+        e implementando reintentos con backoff exponencial ante respuestas 429 (Rate Limit de Azure)
+        y ajuste dinámico ante agotamiento de tokens por modelos de razonamiento.
         """
         import re
         import time
@@ -64,6 +65,12 @@ class LegalAIService:
 
         is_reasoning = any(prefix in deployment_name.lower() for prefix in ("o1", "o3", "reasoning", "gpt-5"))
         current_max_tokens = max_tokens if max_tokens is not None else settings.AZURE_OPENAI_MAX_TOKENS
+
+        # Los modelos de razonamiento (ej. gpt-5-mini) consumen tokens en razonamiento interno (reasoning_tokens)
+        # además de los tokens de texto visibles; un presupuesto inferior a 2500 tokens provoca que devuelvan contenido vacío.
+        if is_reasoning and current_max_tokens < 2500:
+            current_max_tokens = 2500
+
         kwargs: dict[str, Any] = {
             "model": deployment_name,
             "messages": messages,
@@ -75,7 +82,21 @@ class LegalAIService:
         max_retries = 3
         for attempt in range(max_retries + 1):
             try:
-                return client.chat.completions.create(**kwargs)
+                res = client.chat.completions.create(**kwargs)
+                # Detección preventiva: si el modelo agotó el presupuesto en razonamiento y no emitió texto
+                if res.choices:
+                    choice = res.choices[0]
+                    if choice.finish_reason == "length" and not (choice.message.content or "").strip():
+                        if attempt < max_retries:
+                            nuevo_limite = min(kwargs.get("max_completion_tokens", 2500) + 1500, 5000)
+                            logger.warning(
+                                "Modelo %s agotó tokens en razonamiento interno sin emitir texto visible. Incrementando a %d tokens...",
+                                deployment_name,
+                                nuevo_limite,
+                            )
+                            kwargs["max_completion_tokens"] = nuevo_limite
+                            continue
+                return res
             except Exception as e:
                 err_str = str(e).lower()
 
@@ -98,11 +119,11 @@ class LegalAIService:
                     if match:
                         wait_time = min(float(match.group(1)) + 1.0, 10.0)
 
-                    # Reducir dinámicamente los tokens solicitados para reducir el consumo de TPM
-                    if "max_completion_tokens" in kwargs:
-                        kwargs["max_completion_tokens"] = max(300, kwargs["max_completion_tokens"] - 200)
-                    elif "max_tokens" in kwargs:
-                        kwargs["max_tokens"] = max(300, kwargs["max_tokens"] - 200)
+                    # Reducir dinámicamente los tokens solicitados solo si no estamos por debajo del mínimo viable
+                    if "max_completion_tokens" in kwargs and kwargs["max_completion_tokens"] > 2000:
+                        kwargs["max_completion_tokens"] = max(1800, kwargs["max_completion_tokens"] - 300)
+                    elif "max_tokens" in kwargs and kwargs["max_tokens"] > 2000:
+                        kwargs["max_tokens"] = max(1800, kwargs["max_tokens"] - 300)
 
                     logger.warning(
                         "Azure OpenAI 429 RateLimit detectado (intento %d/%d). Esperando %.1fs...",
@@ -191,17 +212,20 @@ class LegalAIService:
             "3. RECOMENDACIONES: propuestas concretas de mitigación."
         )
 
+        max_ctx = getattr(settings, "AI_MAX_CONTEXT_CHARS", 14000)
+        token_budget = max(getattr(settings, "AZURE_OPENAI_MAX_TOKENS_RISK", 3000), 2500)
+
         response = cls._create_completion(
             client=client,
             deployment_name=deployment_name,
             messages=[
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"Texto del documento a auditar:\n\n{contract_text[:1600]}"},
+                {"role": "user", "content": f"Texto del documento a auditar:\n\n{contract_text[:max_ctx]}"},
             ],
-            max_tokens=settings.AZURE_OPENAI_MAX_TOKENS,
+            max_tokens=token_budget,
         )
 
-        content = response.choices[0].message.content or ""
+        content = (response.choices[0].message.content or "").strip()
         if not content:
             from app.services.document_extractor import generate_local_legal_summary
             content = generate_local_legal_summary(contract_text)
@@ -235,17 +259,20 @@ class LegalAIService:
             "- Jurisdicción y Ley Aplicable"
         )
 
+        max_ctx = getattr(settings, "AI_MAX_CONTEXT_CHARS", 14000)
+        token_budget = max(settings.AZURE_OPENAI_MAX_TOKENS, 2500)
+
         response = cls._create_completion(
             client=client,
             deployment_name=deployment_name,
             messages=[
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"Documento:\n\n{contract_text[:1600]}"},
+                {"role": "user", "content": f"Documento:\n\n{contract_text[:max_ctx]}"},
             ],
-            max_tokens=settings.AZURE_OPENAI_MAX_TOKENS,
+            max_tokens=token_budget,
         )
 
-        content = response.choices[0].message.content or ""
+        content = (response.choices[0].message.content or "").strip()
         if not content:
             from app.services.document_extractor import generate_local_legal_summary
             content = generate_local_legal_summary(contract_text)
@@ -301,14 +328,14 @@ class LegalAIService:
         client = cls.get_client()
         deployment_name = settings.AZURE_OPENAI_DEPLOYMENT_NAME
 
-        from app.services.document_extractor import extract_dense_legal_context, generate_local_legal_summary
+        from app.services.document_extractor import extract_dense_legal_context
 
-        # Extraer únicamente los fragmentos legales de mayor densidad jurídica para no exceder los 1000 TPM
-        contexto_seguro = extract_dense_legal_context(contexto_documento, max_chars=1600)
+        max_ctx = getattr(settings, "AI_MAX_CONTEXT_CHARS", 14000)
+        contexto_seguro = extract_dense_legal_context(contexto_documento, max_chars=max_ctx)
 
         system_content = (
             "Eres el asistente jurídico de PluriOne LegalTech. "
-            "Responde de forma concisa, directa y estructurada (listas o viñetas) analizando cláusulas, obligaciones y riesgos."
+            "Responde de forma concisa, directa y estructurada (listas o viñetas) analizando cláusulas, obligaciones y riesgos del documento."
         )
         if contexto_seguro:
             system_content += f"\n\nInstrumento legal a auditar:\n{contexto_seguro}"
@@ -317,32 +344,59 @@ class LegalAIService:
             {"role": "system", "content": system_content}
         ]
 
-        # Limitar historial a los últimos 2 mensajes (1 turno) para mantener el prompt ultra-ligero (<450 tokens)
-        historial_reciente = historial[-2:] if len(historial) > 2 else historial
+        # Conservar historial reciente (hasta 6 mensajes = 3 turnos completos)
+        historial_reciente = historial[-6:] if len(historial) > 6 else historial
         for mensaje in historial_reciente:
             rol_openai = "assistant" if mensaje.get("rol_mensaje") == "asistente" else "user"
-            mensajes.append({"role": rol_openai, "content": mensaje.get("contenido", "")[:300]})
+            mensajes.append({"role": rol_openai, "content": mensaje.get("contenido", "")[:1000]})
         mensajes.append({"role": "user", "content": pregunta})
+
+        token_budget = max(settings.AZURE_OPENAI_MAX_TOKENS, 3000)
 
         try:
             response = cls._create_completion(
                 client=client,
                 deployment_name=deployment_name,
                 messages=mensajes,
-                max_tokens=settings.AZURE_OPENAI_MAX_TOKENS,
+                max_tokens=token_budget,
             )
             choice = response.choices[0]
-            content = choice.message.content or ""
-            return content or generate_local_legal_summary(contexto_documento)
+            content = (choice.message.content or "").strip()
+            if content:
+                return content
+
+            # Si el modelo terminó sin emitir texto visible (por ejemplo por agotar presupuesto en razonamiento)
+            if choice.finish_reason == "length":
+                retry_resp = cls._create_completion(
+                    client=client,
+                    deployment_name=deployment_name,
+                    messages=mensajes,
+                    max_tokens=token_budget + 1500,
+                )
+                retry_content = (retry_resp.choices[0].message.content or "").strip()
+                if retry_content:
+                    return retry_content
+
+            return (
+                "ℹ️ **Asistente Legal IA**: Se procesó la consulta pero el análisis legal requirió una extensión mayor al límite de salida. "
+                "Por favor formula la pregunta de manera más específica o consulta por una sección contractual puntual."
+            )
+
         except Exception as err:
             logger.error("Error o límite alcanzado en Azure OpenAI: %s", err, exc_info=True)
-            # En caso de saturación de la cuota TPM (1000 TPM en Azure), generar el dictamen estructurado desde el contenido digitalizado
-            if contexto_documento and len(contexto_documento) > 50:
-                return generate_local_legal_summary(contexto_documento)
+            # Solo si el usuario solicitó expresamente una auditoría/dictamen general y falló la conexión remota,
+            # proveer el dictamen local estructurado como respaldo de contingencia
+            es_auditoria_general = any(kw in pregunta.lower() for kw in ("auditor", "dictamen", "generalidades", "resumen ejecutivo"))
+            if es_auditoria_general and contexto_documento and len(contexto_documento) > 50:
+                from app.services.document_extractor import generate_local_legal_summary
+                return (
+                    "⚠️ *Nota: El motor de IA en la nube experimentó una latencia temporal. A continuación se presenta el dictamen preliminar generado a partir del contenido digitalizado:*\n\n"
+                    + generate_local_legal_summary(contexto_documento)
+                )
 
             return (
                 f"ℹ️ **Asistente Legal IA**: Se presentó una eventualidad técnica al conectar con Azure OpenAI ({str(err)[:120]}). "
-                "Para efectos del dictamen, revisa las cláusulas directamente o intenta reenviar la consulta."
+                "Por favor reenvía tu consulta en unos segundos."
             )
 
 

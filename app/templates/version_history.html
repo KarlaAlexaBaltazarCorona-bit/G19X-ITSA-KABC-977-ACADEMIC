@@ -41,15 +41,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       body.innerHTML = '<tr><td colspan="7"><div class="empty-state">Solo hay una versión registrada.</div></td></tr>';
       return;
     }
-    body.innerHTML = versions.map(v => `<tr>
-      <td><strong>v${v.numero_version}</strong></td>
-      <td>${v.nombre_archivo}</td>
-      <td class="cell-muted">${v.formato_archivo||'—'}</td>
-      <td class="cell-muted">${v.tamano_archivo ? (v.tamano_archivo/1024).toFixed(1)+' KB' : '—'}</td>
-      <td class="cell-muted">${v.actualizado_por?.slice(0,8)}...</td>
-      <td class="cell-muted">${(v.creado_at||'').slice(0,10)}</td>
-      <td><a href="${v.ubicacion}" target="_blank" class="cell-link">Descargar</a></td>
-    </tr>`).join('');
+    const token = sessionStorage.getItem('plurione_auth_token') || '';
+    body.innerHTML = versions.map(v => {
+      const downloadPath = v.download_url || `/api/v1/documents/versions/${v.id}/download`;
+      const fullDownloadUrl = token ? `${downloadPath}?token=${encodeURIComponent(token)}` : downloadPath;
+      return `<tr>
+        <td><strong>v${v.numero_version}</strong></td>
+        <td>${v.nombre_archivo}</td>
+        <td class="cell-muted">${v.formato_archivo||'—'}</td>
+        <td class="cell-muted">${v.tamano_archivo ? (v.tamano_archivo/1024).toFixed(1)+' KB' : '—'}</td>
+        <td class="cell-muted">${v.actualizado_por?.slice(0,8)}...</td>
+        <td class="cell-muted">${(v.creado_at||'').slice(0,10)}</td>
+        <td><a href="${fullDownloadUrl}" target="_blank" class="cell-link" download><i data-lucide="download" style="width:13px;height:13px;vertical-align:middle;margin-right:2px;"></i> Descargar</a></td>
+      </tr>`;
+    }).join('');
+    if (window.lucide) lucide.createIcons();
   } catch(e) {
     document.getElementById('tabla-versiones').innerHTML = '<tr><td colspan="7"><div class="empty-state">Error al cargar versiones.</div></td></tr>';
   }

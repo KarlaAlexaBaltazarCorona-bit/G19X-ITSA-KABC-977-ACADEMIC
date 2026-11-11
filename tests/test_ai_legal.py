@@ -146,3 +146,42 @@ def test_legal_ai_service_initializes_with_managed_identity():
         LegalAIService._client = original_client
 
 
+def test_responder_con_contexto_no_repite_dictamen_estatico_ante_error():
+    """Verifica que ante un error en OpenAI, una pregunta puntual NO reciba el dictamen preliminar estático."""
+    from unittest.mock import MagicMock
+
+    with patch.object(LegalAIService, "_create_completion", side_effect=Exception("Timeout en Azure OpenAI")):
+        respuesta = LegalAIService.responder_con_contexto(
+            historial=[],
+            pregunta="el documento es realmente un convenio?",
+            contexto_documento="Texto del documento de sindicatos con mas de 60 caracteres de longitud para prueba",
+        )
+        assert "Dictamen y Auditoría Preliminar" not in respuesta
+        assert "Se presentó una eventualidad técnica" in respuesta
+
+
+def test_create_completion_garantiza_presupuesto_para_modelos_de_razonamiento():
+    """Verifica que _create_completion garantice al menos 2500 max_completion_tokens para gpt-5-mini."""
+    from unittest.mock import MagicMock
+
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_choice = MagicMock()
+    mock_choice.finish_reason = "stop"
+    mock_choice.message.content = "Respuesta legal analítica."
+    mock_response.choices = [mock_choice]
+    mock_client.chat.completions.create.return_value = mock_response
+
+    res = LegalAIService._create_completion(
+        client=mock_client,
+        deployment_name="gpt-5-mini",
+        messages=[{"role": "user", "content": "test"}],
+        max_tokens=500,  # Intentar pasar 500
+    )
+
+    call_kwargs = mock_client.chat.completions.create.call_args[1]
+    # Debe haber sido ajustado automáticamente a al menos 2500 para evitar que razonamiento consuma todo
+    assert call_kwargs["max_completion_tokens"] >= 2500
+
+
+

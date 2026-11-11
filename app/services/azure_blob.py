@@ -70,6 +70,42 @@ class AzureBlobService:
         return blob_url
 
     @classmethod
+    def generate_sas_url(cls, filename_or_url: str, expiry_hours: int = 2) -> str | None:
+        """Genera una URL temporal con SAS Token (lectura) para descarga segura desde el navegador."""
+        if not filename_or_url:
+            return None
+        container_name = settings.AZURE_STORAGE_CONTAINER_NAME or "documentos"
+        blob_name = filename_or_url
+        if f"/{container_name}/" in filename_or_url:
+            blob_name = filename_or_url.split(f"/{container_name}/", 1)[-1]
+        elif "/" in filename_or_url and not (filename_or_url.startswith("http://") or filename_or_url.startswith("https://")):
+            blob_name = filename_or_url.split("/")[-1]
+
+        # Quitar parámetros previos si ya tuviera querystring
+        blob_name = blob_name.split("?")[0]
+
+        client = cls.get_client()
+        if client and hasattr(client, "credential") and hasattr(client.credential, "account_key") and client.credential.account_key:
+            try:
+                from datetime import datetime, timedelta, timezone
+                from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+
+                account_name = getattr(client, "account_name", None) or settings.AZURE_STORAGE_ACCOUNT_NAME
+                sas = generate_blob_sas(
+                    account_name=account_name,
+                    container_name=container_name,
+                    blob_name=blob_name,
+                    account_key=client.credential.account_key,
+                    permission=BlobSasPermissions(read=True),
+                    expiry=datetime.now(timezone.utc) + timedelta(hours=expiry_hours),
+                )
+                return f"https://{account_name}.blob.core.windows.net/{container_name}/{blob_name}?{sas}"
+            except Exception as e:
+                logger.warning("No se pudo generar SAS URL para '%s': %s", blob_name, e)
+
+        return None
+
+    @classmethod
     def download_file(cls, filename_or_url: str) -> bytes | None:
         """Descarga el contenido binario de un archivo desde Azure Blob Storage."""
         if not filename_or_url:
@@ -83,6 +119,9 @@ class AzureBlobService:
             blob_name = filename_or_url.split(f"/{container_name}/", 1)[-1]
         elif "/" in filename_or_url and not (filename_or_url.startswith("http://") or filename_or_url.startswith("https://")):
             blob_name = filename_or_url.split("/")[-1]
+
+        # Quitar parámetros query (?...) si los tuviera
+        blob_name = blob_name.split("?")[0]
 
         # 1. Intentar descargar usando el cliente oficial de Azure Blob
         client = cls.get_client()

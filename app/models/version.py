@@ -42,5 +42,19 @@ class VersionDocumento(Base):
     revisiones = relationship("Revision", back_populates="version_documento")
     comentarios = relationship("Comentario", back_populates="version_documento")
 
+    @property
+    def download_url(self) -> str:
+        """URL para descarga autenticada directamente a través del backend."""
+        return f"/api/v1/documents/versions/{self.id}/download"
+
+    @property
+    def sas_url(self) -> str | None:
+        """URL temporal de Azure Blob Storage con SAS Token para descarga directa segura."""
+        try:
+            from app.services.azure_blob import AzureBlobService
+            return AzureBlobService.generate_sas_url(self.ubicacion)
+        except Exception:
+            return None
+
     def __repr__(self) -> str:  # pragma: no cover
         return f"<VersionDocumento doc={self.documento_id} v{self.numero_version}>"
