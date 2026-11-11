@@ -194,6 +194,9 @@ docker compose ps
 docker compose logs -f web
 ```
 
+> [!TIP]
+> **Acceso en desarrollo local con Docker:** Si ejecutas los contenedores con `ENTRA_CLIENT_ID` vacío, puedes iniciar sesión directamente desde la interfaz web en [http://localhost:8000/login](http://localhost:8000/login) (seleccionando el rol en el panel de **Modo Desarrollo Local**) o mediante el endpoint interactivo `POST /api/v1/auth/dev-login` en Swagger UI ([http://localhost:8000/docs](http://localhost:8000/docs)). Consulta los detalles en [Cómo Entrar en Modo Local / Desarrollo](#6-cómo-entrar-en-modo-local--desarrollo-dev-login).
+
 ---
 
 ## 🔐 Configuración de Microsoft Entra ID (SSO)
