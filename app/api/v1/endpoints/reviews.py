@@ -29,6 +29,7 @@ ROLES_COMENTARIOS = (
     RolUsuario.APROBADOR_JURIDICO.value,
     RolUsuario.ADMINISTRADOR_PLATAFORMA.value,
 )
+ROLES_TODOS = tuple(r.value for r in RolUsuario)
 
 
 @router.get("/{solicitud_id}/comments", response_model=list[ComentarioResponse], summary="Obtener comentarios de una solicitud")
@@ -86,7 +87,7 @@ def add_comment(
     "/{solicitud_id}/revision",
     response_model=list[RevisionResponse],
     summary="Listar las revisiones registradas de una solicitud",
-    dependencies=[Depends(requiere_roles(*ROLES_COMENTARIOS))],
+    dependencies=[Depends(requiere_roles(*ROLES_TODOS))],
 )
 def listar_revisiones(
     solicitud_id: uuid.UUID,
@@ -96,12 +97,20 @@ def listar_revisiones(
     solicitud = db.get(SolicitudRevision, solicitud_id)
     if not solicitud:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada.")
-    return (
+    revisiones = (
         db.query(Revision)
         .filter(Revision.solicitud_id == solicitud_id)
         .order_by(Revision.empezado_at.asc())
         .all()
     )
+    for r in revisiones:
+        if r.revisor_usuario:
+            r.revisor_nombre = r.revisor_usuario.nombre_completo or r.revisor_usuario.nombre
+            r.revisor_email = r.revisor_usuario.correo
+        else:
+            r.revisor_nombre = "Revisor Jurídico"
+            r.revisor_email = ""
+    return revisiones
 
 
 @router.post(
@@ -134,6 +143,18 @@ def registrar_revision(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el revisor jurídico asignado o un administrador de plataforma pueden dictaminar esta solicitud.",
         )
+
+    # Si la solicitud estaba en borrador, moverla a EN_REVISION para permitir emitir dictamen formal
+    if solicitud.estado == EstadoSolicitud.BORRADOR:
+        solicitud.estado = EstadoSolicitud.EN_REVISION
+        if not solicitud.revicion_id:
+            solicitud.revicion_id = usuario["id"]
+        db.flush()
+
+    # Si no tiene revisor asignado, asignar al revisor actual
+    if not solicitud.revicion_id:
+        solicitud.revicion_id = usuario["id"]
+        db.flush()
 
 
     # Resolución robusta de la versión de documento para evitar violación de FK en la BD
@@ -236,17 +257,20 @@ def registrar_revision(
 
     # Reglas de transición de Workflow BPM según el dictamen emitido
     if payload.decision == DecisionRevision.APROBAR:
-        WorkflowEngine.transicionar_estado(
-            db, solicitud, EstadoSolicitud.EN_APROBACION, usuario, motivo=payload.notas, request=request
-        )
+        if solicitud.estado == EstadoSolicitud.EN_REVISION:
+            WorkflowEngine.transicionar_estado(
+                db, solicitud, EstadoSolicitud.EN_APROBACION, usuario, motivo=payload.notas, request=request
+            )
     elif payload.decision == DecisionRevision.SOLICITAR_CAMBIOS:
-        WorkflowEngine.transicionar_estado(
-            db, solicitud, EstadoSolicitud.OBSERVADO, usuario, motivo=payload.notas, request=request
-        )
+        if solicitud.estado in (EstadoSolicitud.EN_REVISION, EstadoSolicitud.EN_APROBACION):
+            WorkflowEngine.transicionar_estado(
+                db, solicitud, EstadoSolicitud.OBSERVADO, usuario, motivo=payload.notas, request=request
+            )
     elif payload.decision == DecisionRevision.RECHAZAR:
-        WorkflowEngine.transicionar_estado(
-            db, solicitud, EstadoSolicitud.RECHAZADO, usuario, motivo=payload.notas, request=request
-        )
+        if solicitud.estado in (EstadoSolicitud.EN_REVISION, EstadoSolicitud.EN_APROBACION, EstadoSolicitud.OBSERVADO):
+            WorkflowEngine.transicionar_estado(
+                db, solicitud, EstadoSolicitud.RECHAZADO, usuario, motivo=payload.notas, request=request
+            )
 
     registrar_auditoria(
         db,
@@ -257,5 +281,13 @@ def registrar_revision(
         solicitud_id=solicitud_id,
         request=request,
     )
+
+    if revision.revisor_usuario:
+        revision.revisor_nombre = revision.revisor_usuario.nombre_completo or revision.revisor_usuario.nombre
+        revision.revisor_email = revision.revisor_usuario.correo
+    else:
+        revision.revisor_nombre = usuario.get("name") or "Revisor Jurídico"
+        revision.revisor_email = usuario.get("email") or ""
+
     return revision
 

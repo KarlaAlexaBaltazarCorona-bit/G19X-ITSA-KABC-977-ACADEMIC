@@ -29,3 +29,5 @@ class RevisionResponse(BaseModel):
     notas: str | None = None
     empezado_at: datetime | None = None
     completado_at: datetime | None = None
+    revisor_nombre: str | None = None
+    revisor_email: str | None = None

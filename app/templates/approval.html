@@ -122,12 +122,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (revs && revs.length > 0) {
       const r = revs[revs.length - 1]; /* La más reciente */
       const dmap = {APROBAR:'badge-green',SOLICITAR_CAMBIOS:'badge-amber',RECHAZAR:'badge-red',SIN_DECISION:'badge-gray'};
+      const pad = n => String(n).padStart(2, '0');
+      const formatearFechaHora = (str) => {
+        if (!str) return '—';
+        try {
+          const d = new Date(str);
+          if (isNaN(d.getTime())) return str.replace('T', ' ').slice(0, 19);
+          return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        } catch (_) {
+          return str.replace('T', ' ').slice(0, 19);
+        }
+      };
       document.getElementById('dictamen-revisor').innerHTML = `
-        <div style="margin-bottom:.6rem;">
+        <div class="flex justify-between items-center" style="margin-bottom:.6rem;">
           <span class="badge ${dmap[r.decision]||'badge-gray'}">${r.decision.replace('_',' ')}</span>
+          <span class="muted" style="font-size:0.75rem;">${formatearFechaHora(r.completado_at||r.empezado_at)}</span>
         </div>
-        <p style="font-size:.86rem;color:var(--ink-soft);line-height:1.55;">${r.notas || 'Sin notas adicionales.'}</p>
-        <div class="muted" style="font-size:.76rem;">Revisado: ${(r.completado_at||r.empezado_at||'').slice(0,10)}</div>`;
+        <div style="font-size:0.78rem;color:var(--ink-soft);margin-bottom:0.4rem;">
+          <strong>Revisor:</strong> ${r.revisor_nombre || 'Funcionario Revisor'} ${r.revisor_email ? `(${r.revisor_email})` : ''}
+        </div>
+        <p style="font-size:.86rem;color:var(--ink);background:#f8fafc;padding:0.75rem;border-radius:6px;border:1px solid #e2e8f0;line-height:1.55;white-space:pre-wrap;">${r.notas || 'Sin notas adicionales en el dictamen.'}</p>`;
     } else {
       document.getElementById('dictamen-revisor').innerHTML =
         '<p class="muted" style="font-size:.85rem;">No hay revisiones registradas aún.</p>';

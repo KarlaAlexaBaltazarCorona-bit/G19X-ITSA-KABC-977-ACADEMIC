@@ -81,6 +81,22 @@
         </a>
       </div>
     </form>
+
+    <!-- Historial y Estado del Dictamen Registrado -->
+    <div class="card card-pad" id="card-historial-dictamenes" style="display:none;">
+      <div class="section-title flex items-center justify-between" style="margin-bottom:0.6rem;">
+        <div class="flex items-center gap-2">
+          <i data-lucide="check-check" class="icon" style="width:18px;height:18px;color:var(--navy-600)"></i>
+          <span>Dictamen Jurídico Vigente</span>
+        </div>
+        <span id="badge-dictamen-vigente"></span>
+      </div>
+      <div id="contenedor-dictamen-vigente"></div>
+      <div id="historial-anteriores" style="margin-top:1rem;border-top:1px dashed var(--line);padding-top:0.8rem;display:none;">
+        <span class="muted" style="font-size:0.8rem;font-weight:600;">Historial de deliberaciones previas:</span>
+        <div id="lista-revisiones-anteriores" class="flex-col gap-2" style="margin-top:0.5rem;"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ── Panel derecho: Chat de IA Copilot ── -->
@@ -179,17 +195,107 @@ async function cargarRevision() {
           const dl = vers[0].download_url || `/api/v1/documents/versions/${vers[0].id}/download`;
           b.href = token ? `${dl}?token=${encodeURIComponent(token)}` : dl;
           c.style.display = 'block';
-          if (window.lucide) lucide.createIcons();
         }
       }
     } else {
       document.getElementById('doc-nombre-texto').textContent = 'Solicitud sin archivo adjunto cargado.';
       document.getElementById('doc-meta').textContent = 'El dictamen se registrará sobre el expediente principal.';
     }
+
+    /* Consultar revisiones / dictámenes registrados */
+    const revs = await apiGet(`/api/v1/reviews/${SOL_ID}/revision`).catch(() => []);
+    const cardHist = document.getElementById('card-historial-dictamenes');
+    if (revs && revs.length > 0) {
+      if (cardHist) cardHist.style.display = 'block';
+      const ult = revs[revs.length - 1];
+
+      // Auto-completar el formulario con el último dictamen si el usuario no ha comenzado a editar
+      const selectDecision = document.getElementById('decision');
+      const textNotas = document.getElementById('notas');
+      if (selectDecision && !selectDecision.dataset.userEdited) {
+        selectDecision.value = ult.decision;
+      }
+      if (textNotas && !textNotas.dataset.userEdited) {
+        textNotas.value = ult.notas || '';
+      }
+
+      const decBadgeMap = {
+        APROBAR: 'badge-green',
+        SOLICITAR_CAMBIOS: 'badge-amber',
+        RECHAZAR: 'badge-red',
+        SIN_DECISION: 'badge-gray',
+      };
+      const decTextoMap = {
+        APROBAR: 'APROBADO',
+        SOLICITAR_CAMBIOS: 'SOLICITÓ CAMBIOS (OBSERVADO)',
+        RECHAZAR: 'RECHAZADO',
+        SIN_DECISION: 'EN ANÁLISIS (SIN DECISIÓN)',
+      };
+
+      const pad = n => String(n).padStart(2, '0');
+      const formatearFechaHora = (str) => {
+        if (!str) return '—';
+        try {
+          const d = new Date(str);
+          if (isNaN(d.getTime())) return str.replace('T', ' ').slice(0, 19);
+          return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        } catch (_) {
+          return str.replace('T', ' ').slice(0, 19);
+        }
+      };
+
+      const badgeElem = document.getElementById('badge-dictamen-vigente');
+      if (badgeElem) {
+        badgeElem.innerHTML = `<span class="badge ${decBadgeMap[ult.decision] || 'badge-gray'}">${decTextoMap[ult.decision] || ult.decision}</span>`;
+      }
+      const contElem = document.getElementById('contenedor-dictamen-vigente');
+      if (contElem) {
+        contElem.innerHTML = `
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:0.9rem;">
+            <div class="flex justify-between items-center" style="margin-bottom:0.4rem;font-size:0.8rem;color:var(--ink-soft);flex-wrap:wrap;gap:0.4rem;">
+              <div><strong>Revisor:</strong> ${ult.revisor_nombre || 'Funcionario Revisor'} ${ult.revisor_email ? `(${ult.revisor_email})` : ''}</div>
+              <div><strong>Fecha:</strong> ${formatearFechaHora(ult.completado_at || ult.empezado_at)}</div>
+            </div>
+            <div style="font-size:0.86rem;color:var(--ink);white-space:pre-wrap;line-height:1.5;background:#fff;padding:0.75rem;border-radius:6px;border:1px solid #e2e8f0;">${ult.notas || '<em class="muted">Sin notas adicionales en el dictamen.</em>'}</div>
+          </div>
+        `;
+      }
+
+      if (revs.length > 1) {
+        const histAnteriores = document.getElementById('historial-anteriores');
+        const listaAnteriores = document.getElementById('lista-revisiones-anteriores');
+        if (histAnteriores && listaAnteriores) {
+          histAnteriores.style.display = 'block';
+          const anteriores = revs.slice(0, -1).reverse();
+          listaAnteriores.innerHTML = anteriores.map(r => `
+            <div style="font-size:0.78rem;background:#f1f5f9;border-radius:6px;padding:0.5rem 0.75rem;border:1px solid #e2e8f0;">
+              <div class="flex justify-between">
+                <span class="badge ${decBadgeMap[r.decision] || 'badge-gray'}" style="font-size:0.7rem;">${decTextoMap[r.decision] || r.decision}</span>
+                <span class="muted">${formatearFechaHora(r.completado_at || r.empezado_at)}</span>
+              </div>
+              <div style="margin-top:0.3rem;"><strong>${r.revisor_nombre || 'Revisor'}:</strong> ${r.notas || 'Sin notas'}</div>
+            </div>
+          `).join('');
+        }
+      } else {
+        const histAnteriores = document.getElementById('historial-anteriores');
+        if (histAnteriores) histAnteriores.style.display = 'none';
+      }
+    } else if (cardHist) {
+      cardHist.style.display = 'none';
+    }
+
+    if (window.lucide) lucide.createIcons();
   } catch(e) {
     console.warn('Error cargando revisión:', e);
   }
 }
+
+// Seguimiento de edición manual para no sobrescribir mientras el usuario teclea
+const inputDecision = document.getElementById('decision');
+const inputNotas = document.getElementById('notas');
+if (inputDecision) inputDecision.addEventListener('input', () => { inputDecision.dataset.userEdited = 'true'; });
+if (inputNotas) inputNotas.addEventListener('input', () => { inputNotas.dataset.userEdited = 'true'; });
 
 /* Guardar dictamen de revisión → POST /api/v1/reviews/{solicitud_id}/revision */
 document.getElementById('form-revision').addEventListener('submit', async (e) => {
@@ -223,9 +329,13 @@ document.getElementById('form-revision').addEventListener('submit', async (e) =>
         APROBAR: '✓ Dictamen registrado con éxito. La solicitud avanzó a estado "EN APROBACIÓN" para validación final.',
         SOLICITAR_CAMBIOS: '↩ Dictamen registrado. La solicitud pasó a estado "OBSERVADO" con las correcciones requeridas.',
         RECHAZAR: '✕ Dictamen registrado. La solicitud quedó marcada como "RECHAZADA".',
-        SIN_DECISION: '✓ Notas de revisión guardadas correctamente.',
+        SIN_DECISION: '✓ Dictamen y notas de revisión guardadas correctamente.',
       };
       al.innerHTML = `<div>${descMensajes[decision] || 'Revisión guardada correctamente.'}</div>`;
+
+      // Permitir recargar datos frescos tras guardar
+      if (inputDecision) delete inputDecision.dataset.userEdited;
+      if (inputNotas) delete inputNotas.dataset.userEdited;
       await cargarRevision();
     } else {
       const err = await res.json().catch(() => ({}));
