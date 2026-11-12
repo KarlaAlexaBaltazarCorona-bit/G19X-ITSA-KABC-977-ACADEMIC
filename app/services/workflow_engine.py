@@ -25,7 +25,7 @@ from app.services.azure_blob import AzureBlobService
 logger = logging.getLogger(__name__)
 
 # Matriz formal de transiciones jurídicas permitidas (BPM / Ciclo de vida contractual)
-TRANSICIONES_PERMITIDAS: dict[EstadoSolicitud, set[EstadoSolicitud]] = {
+TRANSICIONES: dict[EstadoSolicitud, set[EstadoSolicitud]] = {
     EstadoSolicitud.BORRADOR: {EstadoSolicitud.EN_REVISION},
     EstadoSolicitud.EN_REVISION: {
         EstadoSolicitud.OBSERVADO,
@@ -42,10 +42,14 @@ TRANSICIONES_PERMITIDAS: dict[EstadoSolicitud, set[EstadoSolicitud]] = {
     EstadoSolicitud.RECHAZADO: set(),
     EstadoSolicitud.FIRMADO: set(),
 }
+TRANSICIONES_PERMITIDAS = TRANSICIONES
 
 
 class WorkflowEngine:
     """Orquesta el recorrido de una Solicitud de Revisión a través del workflow."""
+
+    TRANSICIONES = TRANSICIONES
+    TRANSICIONES_PERMITIDAS = TRANSICIONES
 
     @staticmethod
     def generar_folio_expediente(db: Session) -> str:
@@ -145,11 +149,18 @@ class WorkflowEngine:
             revisor = WorkflowEngine.assign_reviewer(db)
             solicitud.revicion_id = revisor.id
 
-        estado_anterior = (
-            solicitud.estado.value
+        estado_actual = (
+            solicitud.estado
             if isinstance(solicitud.estado, EstadoSolicitud)
-            else str(solicitud.estado)
+            else EstadoSolicitud(solicitud.estado)
         )
+        if EstadoSolicitud.EN_REVISION not in TRANSICIONES.get(estado_actual, set()):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"No se puede pasar de {estado_actual.value} a {EstadoSolicitud.EN_REVISION.value}.",
+            )
+
+        estado_anterior = estado_actual.value
         solicitud.estado = EstadoSolicitud.EN_REVISION
         db.commit()
         db.refresh(solicitud)
@@ -275,11 +286,11 @@ class WorkflowEngine:
             else EstadoSolicitud(nuevo_estado)
         )
 
-        permitidas = TRANSICIONES_PERMITIDAS.get(estado_actual, set())
+        permitidas = TRANSICIONES.get(estado_actual, set())
         if estado_destino not in permitidas:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Transición no permitida: de {estado_actual.value} a {estado_destino.value}.",
+                detail=f"No se puede pasar de {estado_actual.value} a {estado_destino.value}.",
             )
 
         solicitud.estado = estado_destino

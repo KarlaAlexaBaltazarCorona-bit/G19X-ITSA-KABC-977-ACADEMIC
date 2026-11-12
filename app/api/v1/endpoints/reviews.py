@@ -124,6 +124,17 @@ def registrar_revision(
     if not solicitud:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada.")
 
+    # Validar que quien dictamina sea el revisor asignado o un administrador de plataforma
+    if (
+        solicitud.revicion_id
+        and usuario.get("rol") != RolUsuario.ADMINISTRADOR_PLATAFORMA.value
+        and str(solicitud.revicion_id) != str(usuario.get("id"))
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el revisor jurídico asignado o un administrador de plataforma pueden dictaminar esta solicitud.",
+        )
+
 
     # Resolución robusta de la versión de documento para evitar violación de FK en la BD
     target_version_id = payload.vercion_documento_id

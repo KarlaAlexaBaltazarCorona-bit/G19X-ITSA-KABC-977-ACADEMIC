@@ -63,7 +63,7 @@ def test_transicion_invalida_borrador_a_aprobado_lanza_409(db: Session, test_sol
     with pytest.raises(HTTPException) as exc_info:
         WorkflowEngine.transicionar_estado(db, test_solicitud, EstadoSolicitud.APROBADO, usuario)
     assert exc_info.value.status_code == 409
-    assert "Transición no permitida" in exc_info.value.detail
+    assert f"No se puede pasar de {EstadoSolicitud.BORRADOR.value} a {EstadoSolicitud.APROBADO.value}" in exc_info.value.detail
 
 
 def test_transicion_invalida_firmado_a_rechazado_lanza_409(db: Session, test_solicitud: SolicitudRevision):
@@ -75,7 +75,7 @@ def test_transicion_invalida_firmado_a_rechazado_lanza_409(db: Session, test_sol
     with pytest.raises(HTTPException) as exc_info:
         WorkflowEngine.transicionar_estado(db, test_solicitud, EstadoSolicitud.RECHAZADO, usuario)
     assert exc_info.value.status_code == 409
-    assert "Transición no permitida" in exc_info.value.detail
+    assert f"No se puede pasar de {EstadoSolicitud.FIRMADO.value} a {EstadoSolicitud.RECHAZADO.value}" in exc_info.value.detail
 
 
 def test_transicion_invalida_rechazado_a_en_revision_lanza_409(db: Session, test_solicitud: SolicitudRevision):
@@ -87,6 +87,7 @@ def test_transicion_invalida_rechazado_a_en_revision_lanza_409(db: Session, test
     with pytest.raises(HTTPException) as exc_info:
         WorkflowEngine.transicionar_estado(db, test_solicitud, EstadoSolicitud.EN_REVISION, usuario)
     assert exc_info.value.status_code == 409
+    assert f"No se puede pasar de {EstadoSolicitud.RECHAZADO.value} a {EstadoSolicitud.EN_REVISION.value}" in exc_info.value.detail
 
 
 def test_ciclo_completo_transiciones_validas(db: Session, test_solicitud: SolicitudRevision):
@@ -120,7 +121,7 @@ def test_endpoint_decision_rechaza_salto_invalido_con_409(client: TestClient, db
     )
     assert response.status_code == 409
     data = response.json()
-    assert "Transición no permitida" in data["detail"]
+    assert "No se puede pasar de BORRADOR a APROBADO" in data["detail"]
 
 
 def test_assign_reviewer_fallback_to_admin_when_no_revisores(db: Session):
@@ -162,3 +163,72 @@ def test_assign_reviewer_prioritizes_revisores_juridicos(db: Session):
 
     asignado = WorkflowEngine.assign_reviewer(db)
     assert asignado.role == RolUsuario.REVISOR_JURIDICO
+
+
+def test_dictamen_requiere_ser_revisor_asignado_o_admin(client: TestClient, db: Session, test_solicitud: SolicitudRevision):
+    """Verifica que si la solicitud tiene un revisor asignado, otro revisor jurídico no pueda dictaminar (403), pero el asignado y el admin sí."""
+    from main import app
+    from app.core.auth_guard import get_current_user
+
+    revisor_asignado = Usuario(
+        id=uuid.uuid4(),
+        objeto_id="oid-revisor-asignado",
+        correo="revisor_asignado@test.local",
+        nombre="Revisor Asignado",
+        role=RolUsuario.REVISOR_JURIDICO,
+        activo=True,
+    )
+    revisor_ajeno = Usuario(
+        id=uuid.uuid4(),
+        objeto_id="oid-revisor-ajeno",
+        correo="revisor_ajeno@test.local",
+        nombre="Revisor Ajeno",
+        role=RolUsuario.REVISOR_JURIDICO,
+        activo=True,
+    )
+    db.add(revisor_asignado)
+    db.add(revisor_ajeno)
+    test_solicitud.revicion_id = revisor_asignado.id
+    test_solicitud.estado = EstadoSolicitud.EN_REVISION
+    db.commit()
+
+    saved_user = app.dependency_overrides.get(get_current_user)
+    try:
+        # 1. Revisor ajeno intenta dictaminar -> 403 Forbidden
+        app.dependency_overrides[get_current_user] = lambda: {
+            "id": revisor_ajeno.id,
+            "nombre": revisor_ajeno.nombre_completo,
+            "correo": revisor_ajeno.correo,
+            "rol": revisor_ajeno.role.value,
+            "activo": True,
+        }
+        res_ajeno = client.post(
+            f"/api/v1/reviews/{test_solicitud.id}/revision",
+            json={"decision": "APROBAR", "notas": "Intento no autorizado"},
+        )
+        assert res_ajeno.status_code == 403
+        assert "Solo el revisor jurídico asignado o un administrador" in res_ajeno.json()["detail"]
+
+        # 2. Revisor asignado dictamina -> 201 Created
+        app.dependency_overrides[get_current_user] = lambda: {
+            "id": revisor_asignado.id,
+            "nombre": revisor_asignado.nombre_completo,
+            "correo": revisor_asignado.correo,
+            "rol": revisor_asignado.role.value,
+            "activo": True,
+        }
+        res_asignado = client.post(
+            f"/api/v1/reviews/{test_solicitud.id}/revision",
+            json={"decision": "APROBAR", "notas": "Dictamen válido por revisor titular"},
+        )
+        assert res_asignado.status_code == 201
+    finally:
+        if saved_user:
+            app.dependency_overrides[get_current_user] = saved_user
+        else:
+            app.dependency_overrides.pop(get_current_user, None)
+        from app.models.revision import Revision
+        db.query(Revision).filter(Revision.solicitud_id == test_solicitud.id).delete()
+        db.query(Usuario).filter(Usuario.id.in_([revisor_asignado.id, revisor_ajeno.id])).delete()
+        db.commit()
+
