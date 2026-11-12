@@ -42,4 +42,6 @@ class VersionDocumentoResponse(BaseModel):
     tamano_archivo: int | None = None
     formato_archivo: str | None = None
     actualizado_por: uuid.UUID
+    actualizado_por_nombre: str | None = None
+    actualizado_por_correo: str | None = None
     creado_at: datetime | None = None

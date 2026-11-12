@@ -52,8 +52,16 @@ class AzureBlobService:
     def upload_file(cls, filename: str, content: bytes) -> str:
         """Sube un archivo al contenedor de documentos legales y retorna su URL canónica."""
         account_name = settings.AZURE_STORAGE_ACCOUNT_NAME or "almacenlegalprojectia"
-        container_name = settings.AZURE_STORAGE_CONTAINER_NAME
+        container_name = settings.AZURE_STORAGE_CONTAINER_NAME or "documentos"
         blob_url = f"https://{account_name}.blob.core.windows.net/{container_name}/{filename}"
+
+        # Guardar copia local en caché para descargas instantáneas en entornos locales o baja latencia
+        local_dir = Path("local_storage") / container_name
+        local_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            (local_dir / Path(filename).name).write_bytes(content)
+        except Exception as e_local:
+            logger.warning("No se pudo escribir copia local en caché: %s", e_local)
 
         client = cls.get_client()
         if client:
@@ -64,9 +72,6 @@ class AzureBlobService:
             except Exception as e:
                 logger.error("Error al subir blob a Azure Storage: %s", e, exc_info=True)
 
-        local_dir = Path("local_storage") / (container_name or "documentos")
-        local_dir.mkdir(parents=True, exist_ok=True)
-        (local_dir / Path(filename).name).write_bytes(content)
         return blob_url
 
     @classmethod
@@ -107,7 +112,7 @@ class AzureBlobService:
 
     @classmethod
     def download_file(cls, filename_or_url: str) -> bytes | None:
-        """Descarga el contenido binario de un archivo desde Azure Blob Storage."""
+        """Descarga el contenido binario de un archivo desde Azure Blob Storage o caché local."""
         if not filename_or_url:
             return None
 
@@ -123,20 +128,15 @@ class AzureBlobService:
         # Quitar parámetros query (?...) si los tuviera
         blob_name = blob_name.split("?")[0]
 
-        # 1. Intentar descargar usando el cliente oficial de Azure Blob
-        client = cls.get_client()
-        if client:
-            try:
-                blob_client = client.get_blob_client(container=container_name, blob=blob_name)
-                download_stream = blob_client.download_blob()
-                return download_stream.readall()
-            except Exception as e:
-                logger.warning("Fallo al descargar blob '%s' vía BlobClient: %s", blob_name, e)
-
-        # 2. Respaldo local: verificar si el archivo existe en disco
-        local_copy = Path("local_storage") / container_name / Path(blob_name).name
+        # 1. Respaldo / Caché local primero (máxima velocidad, 0 latencia de red)
+        local_dir = Path("local_storage") / container_name
+        local_copy = local_dir / Path(blob_name).name
         if local_copy.is_file():
-            return local_copy.read_bytes()
+            try:
+                return local_copy.read_bytes()
+            except Exception as e_read:
+                logger.warning("Fallo al leer caché local '%s': %s", local_copy, e_read)
+
         if os.path.exists(filename_or_url):
             try:
                 with open(filename_or_url, "rb") as f:
@@ -144,12 +144,34 @@ class AzureBlobService:
             except Exception as e:
                 logger.warning("Fallo al leer archivo local '%s': %s", filename_or_url, e)
 
+        # 2. Descargar de Azure Blob Storage oficial
+        client = cls.get_client()
+        if client:
+            try:
+                blob_client = client.get_blob_client(container=container_name, blob=blob_name)
+                download_stream = blob_client.download_blob()
+                data = download_stream.readall()
+                # Guardar en caché local para próximas peticiones inmediatas
+                try:
+                    local_dir.mkdir(parents=True, exist_ok=True)
+                    local_copy.write_bytes(data)
+                except Exception:
+                    pass
+                return data
+            except Exception as e:
+                logger.warning("Fallo al descargar blob '%s' vía BlobClient: %s", blob_name, e)
+
         # 3. Si es URL HTTP/HTTPS y el cliente directo no funcionó, intentar vía HTTP request
         if filename_or_url.startswith("http://") or filename_or_url.startswith("https://"):
             try:
                 import requests
-                resp = requests.get(filename_or_url, timeout=10)
+                resp = requests.get(filename_or_url, timeout=15)
                 if resp.status_code == 200:
+                    try:
+                        local_dir.mkdir(parents=True, exist_ok=True)
+                        local_copy.write_bytes(resp.content)
+                    except Exception:
+                        pass
                     return resp.content
             except Exception as e:
                 logger.warning("Fallo al descargar blob vía HTTP desde '%s': %s", filename_or_url, e)

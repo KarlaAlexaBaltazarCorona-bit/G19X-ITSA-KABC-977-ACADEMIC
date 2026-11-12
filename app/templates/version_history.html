@@ -42,16 +42,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     const token = sessionStorage.getItem('plurione_auth_token') || '';
+    const pad = n => String(n).padStart(2, '0');
+    const formatearFechaHora = (str) => {
+      if (!str) return '—';
+      try {
+        const d = new Date(str);
+        if (isNaN(d.getTime())) return str.replace('T', ' ').slice(0, 19);
+        return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      } catch (_) {
+        return str.replace('T', ' ').slice(0, 19);
+      }
+    };
+
     body.innerHTML = versions.map(v => {
       const downloadPath = v.download_url || `/api/v1/documents/versions/${v.id}/download`;
       const fullDownloadUrl = token ? `${downloadPath}?token=${encodeURIComponent(token)}` : downloadPath;
+      const usuarioStr = v.actualizado_por_nombre
+        ? `<strong>${v.actualizado_por_nombre}</strong><br><span style="font-size:.74rem;color:var(--ink-faint)">${v.actualizado_por_correo || ''}</span>`
+        : (v.actualizado_por?.slice(0,8) + '...');
+      const fechaConSegundos = formatearFechaHora(v.creado_at);
+
       return `<tr>
         <td><strong>v${v.numero_version}</strong></td>
         <td>${v.nombre_archivo}</td>
         <td class="cell-muted">${v.formato_archivo||'—'}</td>
         <td class="cell-muted">${v.tamano_archivo ? (v.tamano_archivo/1024).toFixed(1)+' KB' : '—'}</td>
-        <td class="cell-muted">${v.actualizado_por?.slice(0,8)}...</td>
-        <td class="cell-muted">${(v.creado_at||'').slice(0,10)}</td>
+        <td class="cell-muted">${usuarioStr}</td>
+        <td class="cell-muted" style="white-space:nowrap;font-size:.82rem;">${fechaConSegundos}</td>
         <td><a href="${fullDownloadUrl}" target="_blank" class="cell-link" download><i data-lucide="download" style="width:13px;height:13px;vertical-align:middle;margin-right:2px;"></i> Descargar</a></td>
       </tr>`;
     }).join('');

@@ -1,46 +1,51 @@
 {% extends "base.html" %}
 {#
-  traceability.html — Pantalla 11: Trazabilidad / Historial de auditoría
-  ────────────────────────────────────────────────────────────────────────
-  Roles: AUDITOR, ADMINISTRADOR_PLATAFORMA
-  Muestra el log completo de auditoría (tabla `auditoria`).
-  Cada fila = una acción registrada: quién, qué, cuándo, desde qué IP.
-  Datos: GET /api/v1/audit/trail/{solicitud_id} (por solicitud)
-         La búsqueda por usuario o global no tiene endpoint aún — se filtra en cliente.
+  traceability.html — Pantalla 11: Trazabilidad / Historial de auditoría forense
+  ────────────────────────────────────────────────────────────────────────────
+  Roles: AUDITOR, ADMINISTRADOR_PLATAFORMA, APROBADOR_JURIDICO, REVISOR_JURIDICO
+  Muestra el log detallado de auditoría forense (tabla `auditoria`):
+  quién ejecutó la acción (nombre y correo), fecha/hora exacta con segundos,
+  solicitud/folio intervenido, cambio de valores y dirección IP de origen.
 #}
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>Trazabilidad</h1>
-    <p>Registro completo de quién hizo qué, cuándo y desde dónde.</p>
+    <h1>Pista de Auditoría y Trazabilidad</h1>
+    <p>Registro inmutable con fecha, hora exacta (segundos), nombres, correos e IP de origen de cada acción.</p>
   </div>
 </div>
 
-<!-- Filtros -->
-<div class="filter-bar">
-  <div class="filter-field">
-    <label>ID de solicitud</label>
-    <input class="input" type="text" id="filtro-sol" placeholder="Pega el ID de la solicitud">
+<!-- Barra de Filtros y Búsqueda -->
+<div class="filter-bar" style="display:flex;flex-wrap:wrap;gap:.8rem;align-items:flex-end;">
+  <div class="filter-field" style="flex:1;min-width:200px;">
+    <label>Búsqueda libre</label>
+    <input class="input" type="text" id="filtro-texto" placeholder="Buscar por nombre, correo, folio o acción...">
   </div>
-  <div class="filter-field">
+  <div class="filter-field" style="width:220px;">
+    <label>ID o Folio de Solicitud</label>
+    <input class="input" type="text" id="filtro-sol" placeholder="Ej. EXP-2026-0001 o UUID">
+  </div>
+  <div class="filter-field" style="width:160px;">
     <label>Fecha desde</label>
     <input class="input" type="date" id="filtro-desde">
   </div>
-  <div class="filter-actions">
-    <button type="button" class="btn btn-primary btn-sm" onclick="buscar()">
-      <i data-lucide="search" class="icon" style="width:15px;height:15px"></i> Buscar
+  <div class="filter-actions" style="display:flex;gap:.5rem;">
+    <button type="button" class="btn btn-primary btn-sm" onclick="filtrarRegistros()">
+      <i data-lucide="search" class="icon" style="width:15px;height:15px"></i> Filtrar
     </button>
-    <button type="button" class="btn btn-outline btn-sm" onclick="limpiar()">Limpiar</button>
+    <button type="button" class="btn btn-outline btn-sm" onclick="cargarAuditoria(true)">
+      <i data-lucide="refresh-cw" class="icon" style="width:15px;height:15px"></i> Actualizar
+    </button>
   </div>
 </div>
 
-<!-- Timeline de auditoría -->
+<!-- Timeline de auditoría detallada -->
 <div class="card card-pad">
   <ul class="timeline" id="timeline-auditoria">
     <li>
       <div class="dot-wrap"><div class="dot"></div></div>
       <div class="tl-body">
-        <div class="muted" style="font-size:.85rem;">Introduce el ID de una solicitud y pulsa "Buscar" para ver su trazabilidad.</div>
+        <div class="muted" style="font-size:.85rem;">Cargando bitácora de auditoría forense...</div>
       </div>
     </li>
   </ul>
@@ -55,73 +60,135 @@
 
 {% block scripts %}
 <script>
-/*
- * traceability.js (inline) — Busca y muestra el historial de auditoría
- * de una solicitud específica.
- * Fuente: GET /api/v1/audit/trail/{solicitud_id}
- */
 let LOG_CARGADO = [];
 
-async function buscar() {
-  const solId = document.getElementById('filtro-sol').value.trim();
-  const desde = document.getElementById('filtro-desde').value;
-  if (!solId) { alert('Introduce el ID de una solicitud para buscar.'); return; }
+function formatearFechaConSegundos(fechaStr) {
+  if (!fechaStr) return '—';
+  try {
+    const d = new Date(fechaStr);
+    if (isNaN(d.getTime())) {
+      return fechaStr.replace('T', ' ').slice(0, 19);
+    }
+    const pad = n => String(n).padStart(2, '0');
+    const dia = pad(d.getDate());
+    const mes = pad(d.getMonth() + 1);
+    const anio = d.getFullYear();
+    const horas = pad(d.getHours());
+    const mins = pad(d.getMinutes());
+    const segs = pad(d.getSeconds());
+    return `${dia}/${mes}/${anio} ${horas}:${mins}:${segs}`;
+  } catch (_) {
+    return fechaStr.replace('T', ' ').slice(0, 19);
+  }
+}
 
+async function cargarAuditoria(forzarGlobal = false) {
   const tl = document.getElementById('timeline-auditoria');
-  tl.innerHTML = '<li><div class="dot-wrap"><div class="dot"></div></div><div class="tl-body"><div class="muted">Cargando...</div></div></li>';
+  tl.innerHTML = '<li><div class="dot-wrap"><div class="dot"></div></div><div class="tl-body"><div class="muted">Consultando trazabilidad forense...</div></div></li>';
+
+  const solId = (!forzarGlobal ? document.getElementById('filtro-sol').value.trim() : '');
 
   try {
-    const data = await apiGet(`/api/v1/audit/trail/${solId}`);
-    LOG_CARGADO = data || [];
+    const endpoint = (solId && solId.length > 20)
+      ? `/api/v1/audit/trail/${solId}`
+      : `/api/v1/audit/trail?limit=200`;
 
-    /* Filtrar por fecha si se especificó */
-    let filtrado = LOG_CARGADO;
-    if (desde) filtrado = filtrado.filter(e => (e.creada_at||'') >= desde);
-
-    renderTimeline(filtrado);
-  } catch(e) {
-    tl.innerHTML = '<li><div class="dot-wrap"><div class="dot"></div></div><div class="tl-body"><div class="muted">No se encontraron registros para esa solicitud.</div></div></li>';
+    const data = await apiGet(endpoint);
+    LOG_CARGADO = Array.isArray(data) ? data : [];
+    filtrarRegistros();
+  } catch (err) {
+    tl.innerHTML = `<li><div class="dot-wrap"><div class="dot" style="background:var(--red-600)"></div></div><div class="tl-body"><div class="muted">No fue posible recuperar la bitácora: ${err.message || 'Error de red'}</div></div></li>`;
   }
+}
+
+function filtrarRegistros() {
+  const q = (document.getElementById('filtro-texto').value || '').trim().toLowerCase();
+  const sol = (document.getElementById('filtro-sol').value || '').trim().toLowerCase();
+  const desde = document.getElementById('filtro-desde').value;
+
+  let filtrados = LOG_CARGADO.filter(item => {
+    if (desde && item.creada_at) {
+      if (item.creada_at.slice(0, 10) < desde) return false;
+    }
+    if (sol) {
+      const matchSol = (item.solicitud_folio || '').toLowerCase().includes(sol) ||
+                       (item.solicitud_id || '').toLowerCase().includes(sol);
+      if (!matchSol) return false;
+    }
+    if (q) {
+      const texto = [
+        item.usuario_nombre,
+        item.usuario_correo,
+        item.accion,
+        item.solicitud_folio,
+        item.tipo_documento,
+        item.valor_anterior,
+        item.valor_nuevo,
+        item.direccion_ip
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!texto.includes(q)) return false;
+    }
+    return true;
+  });
+
+  renderTimeline(filtrados);
 }
 
 function renderTimeline(items) {
   const tl = document.getElementById('timeline-auditoria');
   if (!items || items.length === 0) {
-    tl.innerHTML = '<li><div class="dot-wrap"><div class="dot"></div></div><div class="tl-body"><div class="muted">Sin registros para mostrar.</div></div></li>';
+    tl.innerHTML = '<li><div class="dot-wrap"><div class="dot"></div></div><div class="tl-body"><div class="muted">No se encontraron eventos de auditoría con los criterios especificados.</div></div></li>';
     return;
   }
-  tl.innerHTML = items.map((e, i) => `
-    <li>
+
+  tl.innerHTML = items.map((e, i) => {
+    const nombre = e.usuario_nombre || 'Usuario del Sistema';
+    const correo = e.usuario_correo ? `(${e.usuario_correo})` : '';
+    const fechaHora = formatearFechaConSegundos(e.creada_at);
+    const folio = e.solicitud_folio ? `<span class="badge badge-info" style="font-size:.72rem;margin-left:.4rem;">${e.solicitud_folio}</span>` : '';
+
+    return `
+    <li style="padding-bottom:1.4rem;">
       <div class="dot-wrap">
         <div class="dot"></div>
         ${i < items.length - 1 ? '<div class="line"></div>' : ''}
       </div>
       <div class="tl-body">
-        <div>
-          <strong>${e.user_id?.slice(0,8)||'—'}...</strong>
-          <span class="faint" style="font-size:.78rem;"> · ${e.tipo_documento}</span>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.35rem;">
+          <strong style="color:var(--navy-900);font-size:.9rem;">${nombre}</strong>
+          ${correo ? `<span class="faint" style="font-size:.8rem;">${correo}</span>` : ''}
+          ${folio}
+          <span class="faint" style="font-size:.78rem;background:var(--line-soft);padding:.1rem .4rem;border-radius:4px;">${e.tipo_documento}</span>
         </div>
-        <div style="font-size:.87rem;color:var(--ink-soft);margin-top:.15rem;">${e.accion}</div>
+        <div style="font-size:.88rem;color:var(--ink-soft);margin-top:.25rem;font-weight:500;">
+          ${e.accion}
+        </div>
         ${e.valor_anterior && e.valor_nuevo
-          ? `<div style="font-size:.78rem;color:var(--ink-faint);margin-top:.2rem;">
-               <span style="background:var(--red-100);color:var(--red-600);padding:.1rem .4rem;border-radius:4px;">${e.valor_anterior}</span>
-               → 
-               <span style="background:var(--green-100);color:var(--green-600);padding:.1rem .4rem;border-radius:4px;">${e.valor_nuevo}</span>
+          ? `<div style="font-size:.78rem;color:var(--ink-faint);margin-top:.3rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;">
+               <span style="background:var(--red-100);color:var(--red-600);padding:.15rem .45rem;border-radius:4px;font-family:monospace;">${e.valor_anterior}</span>
+               <span>→</span>
+               <span style="background:var(--green-100);color:var(--green-600);padding:.15rem .45rem;border-radius:4px;font-family:monospace;">${e.valor_nuevo}</span>
              </div>`
           : ''}
-        <div class="tl-meta">
-          ${(e.creada_at||'').slice(0,16).replace('T',' ')}
-          ${e.direccion_ip ? ' · IP: '+e.direccion_ip : ''}
+        <div class="tl-meta" style="margin-top:.35rem;font-size:.78rem;color:var(--ink-faint);display:flex;gap:.8rem;flex-wrap:wrap;">
+          <span>🕒 <strong>${fechaHora}</strong></span>
+          ${e.direccion_ip ? `<span>🌐 IP: <strong>${e.direccion_ip}</strong></span>` : ''}
         </div>
       </div>
-    </li>`).join('');
+    </li>`;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons();
 }
 
-function limpiar() {
-  document.getElementById('filtro-sol').value = '';
-  document.getElementById('filtro-desde').value = '';
-  document.getElementById('timeline-auditoria').innerHTML =
-    '<li><div class="dot-wrap"><div class="dot"></div></div><div class="tl-body"><div class="muted">Introduce el ID de una solicitud para comenzar.</div></div></li>';
-}
+document.addEventListener('DOMContentLoaded', () => {
+  cargarAuditoria();
+  const inputTexto = document.getElementById('filtro-texto');
+  if (inputTexto) {
+    inputTexto.addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') filtrarRegistros();
+    });
+  }
+});
 </script>
 {% endblock %}

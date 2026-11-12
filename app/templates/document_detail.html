@@ -90,6 +90,17 @@ async function cargarDetalle() {
     renderStepper(s.estado);
 
     /* Información general */
+    const pad = n => String(n).padStart(2, '0');
+    const formatearFechaHoraDetalle = (str) => {
+      if (!str) return '—';
+      try {
+        const d = new Date(str);
+        if (isNaN(d.getTime())) return str.replace('T', ' ').slice(0, 19);
+        return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      } catch (_) {
+        return str.replace('T', ' ').slice(0, 19);
+      }
+    };
     const fila=(label,val)=>`<div class="flex justify-between"><span class="muted">${label}</span><strong>${val||'—'}</strong></div>`;
     document.getElementById('info-general').innerHTML =
       fila('ID Contrato (UUID)', `<code style="font-size:0.8rem;background:#f1f5f9;padding:1px 4px;border-radius:4px;">${s.id}</code>`) +
@@ -98,8 +109,8 @@ async function cargarDetalle() {
       fila('Prioridad', s.prioridad) +
       fila('Estado', s.estado.replace('_',' ')) +
       fila('Fecha límite', s.fecha_limite ? s.fecha_limite.slice(0,10) : '—') +
-      fila('Creado', s.creado_at ? s.creado_at.slice(0,10) : '—') +
-      fila('Actualizado', s.actualizado_at ? s.actualizado_at.slice(0,10) : '—');
+      fila('Creado', s.creado_at ? formatearFechaHoraDetalle(s.creado_at) : '—') +
+      fila('Actualizado', s.actualizado_at ? formatearFechaHoraDetalle(s.actualizado_at) : '—');
 
     try {
       const docs = await apiGet(`/api/v1/documents/${SOL_ID}`).catch(() => []);

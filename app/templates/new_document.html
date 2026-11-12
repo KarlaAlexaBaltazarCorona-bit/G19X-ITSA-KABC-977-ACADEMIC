@@ -19,7 +19,7 @@
     <!-- Alerta de éxito/error (oculta por defecto) -->
     <div id="alerta" class="flash" style="display:none"></div>
 
-    <form id="form-nueva" enctype="multipart/form-data">
+    <form id="form-nueva" method="POST" action="javascript:void(0);" enctype="multipart/form-data" onsubmit="event.preventDefault(); enviarFormulario(true); return false;">
       <!-- Tipo de documento -->
       <div class="field">
         <label for="tipo_documento">Tipo de documento *</label>
@@ -127,18 +127,30 @@ async function enviarFormulario(enviarARevision) {
   btnActive.innerHTML = '<i data-lucide="loader-2" class="icon" style="width:16px;height:16px;animation:spin 1s linear infinite"></i> Guardando...';
   if (window.lucide) lucide.createIcons();
 
+  const tituloVal = (document.getElementById('titulo').value || '').trim();
+  const tipoVal = document.getElementById('tipo_documento').value;
+  const descVal = document.getElementById('descripcion').value || '';
+  const prioVal = document.getElementById('prioridad').value || 'NORMAL';
+  const fechaVal = document.getElementById('fecha_limite').value;
+
   const fd = new FormData();
   fd.append('archivo', archivo);
+  fd.append('titulo', tituloVal);
+  fd.append('tipo_documento', tipoVal);
+  fd.append('descripcion', descVal);
+  fd.append('prioridad', prioVal);
+  fd.append('enviar_a_revision', enviarARevision ? 'true' : 'false');
+  if (fechaVal) {
+    fd.append('fecha_limite', fechaVal + 'T23:59:59');
+  }
 
   const queryObj = {
-    titulo: document.getElementById('titulo').value,
-    tipo_documento: document.getElementById('tipo_documento').value,
-    descripcion: document.getElementById('descripcion').value || '',
-    prioridad: document.getElementById('prioridad').value || 'NORMAL',
+    titulo: tituloVal,
+    tipo_documento: tipoVal,
+    descripcion: descVal,
+    prioridad: prioVal,
     enviar_a_revision: enviarARevision ? 'true' : 'false'
   };
-
-  const fechaVal = document.getElementById('fecha_limite').value;
   if (fechaVal) {
     queryObj.fecha_limite = fechaVal + 'T23:59:59';
   }
@@ -147,12 +159,18 @@ async function enviarFormulario(enviarARevision) {
 
   try {
     const token = sessionStorage.getItem('plurione_auth_token') || '';
+    const apiKey = sessionStorage.getItem('plurione_api_key') || '';
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    }
+    if (apiKey) {
+      headers['X-API-KEY'] = apiKey;
+    }
+
     const res = await fetch(`/api/v1/solicitudes/?${params}`, {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        ...(sessionStorage.getItem('plurione_api_key') ? { 'X-API-KEY': sessionStorage.getItem('plurione_api_key') } : {})
-      },
+      headers: headers,
       body: fd,
     });
 

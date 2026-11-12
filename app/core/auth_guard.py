@@ -27,6 +27,7 @@ sin eso, cualquiera podría fabricar un token con el rol que quiera.
 import base64
 import json
 import logging
+import os
 import secrets
 from typing import Any
 from fastapi import Depends, Header, HTTPException, Request, Security, status
@@ -153,13 +154,19 @@ def _decode_token_claims(token: str) -> dict:
         try:
             import jwt as pyjwt  # PyJWT
 
+            header = pyjwt.get_unverified_header(token)
+            # Soporte de tokens dev-login en desarrollo local / offline
+            is_production = bool(os.getenv("WEBSITE_HOSTNAME")) or os.getenv("ENVIRONMENT", "").lower() == "production"
+            if header.get("alg") == "none" and not is_production:
+                logger.info("Token de desarrollo simulado (alg: none) aceptado en entorno local.")
+                return pyjwt.decode(token, options={"verify_signature": False})
+
             jwks = _get_jwks()
             if not jwks:
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="No fue posible validar el token con Microsoft Entra ID en este momento.",
                 )
-            header = pyjwt.get_unverified_header(token)
             kid = header.get("kid")
 
             clave_publica = None

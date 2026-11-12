@@ -150,7 +150,7 @@ def dev_login(payload: DevLoginRequest, response: Response, db: Session = Depend
     import os
 
     is_production = bool(os.getenv("WEBSITE_HOSTNAME")) or os.getenv("ENVIRONMENT", "").lower() == "production"
-    if is_production or settings.ENTRA_CLIENT_ID:
+    if is_production:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="El inicio de sesión simulado de prueba está desactivado en producción. Autentíquese con Microsoft Entra ID institucional.",

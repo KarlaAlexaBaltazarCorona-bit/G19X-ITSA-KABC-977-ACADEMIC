@@ -43,6 +43,18 @@ class VersionDocumento(Base):
     comentarios = relationship("Comentario", back_populates="version_documento")
 
     @property
+    def actualizado_por_nombre(self) -> str | None:
+        if self.usuario_actualizo:
+            return self.usuario_actualizo.nombre_completo
+        return None
+
+    @property
+    def actualizado_por_correo(self) -> str | None:
+        if self.usuario_actualizo:
+            return self.usuario_actualizo.correo
+        return None
+
+    @property
     def download_url(self) -> str:
         """URL para descarga autenticada directamente a través del backend."""
         return f"/api/v1/documents/versions/{self.id}/download"

@@ -49,7 +49,11 @@ def registrar_auditoria(
     direccion_ip = None
     usuario_buscador = None
     if request is not None:
-        direccion_ip = request.client.host if request.client else None
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            direccion_ip = forwarded.split(",")[0].strip()
+        elif request.client:
+            direccion_ip = request.client.host
         usuario_buscador = request.headers.get("user-agent")
 
     registro = Auditoria(

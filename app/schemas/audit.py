@@ -13,12 +13,17 @@ class AuditoriaResponse(BaseModel):
 
     id: uuid.UUID
     solicitud_id: uuid.UUID | None = None
+    solicitud_folio: str | None = None
     user_id: uuid.UUID
+    usuario_nombre: str | None = None
+    usuario_correo: str | None = None
     tipo_documento: str
     id_documento: uuid.UUID | None = None
     accion: str
     valor_anterior: str | None = None
     valor_nuevo: str | None = None
+    direccion_ip: str | None = None
+    usuario_buscador: str | None = None
     creada_at: datetime | None = None
 
 

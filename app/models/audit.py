@@ -45,5 +45,23 @@ class Auditoria(Base):
     solicitud = relationship("SolicitudRevision")
     usuario = relationship("Usuario", foreign_keys=[user_id])
 
+    @property
+    def usuario_nombre(self) -> str | None:
+        if self.usuario:
+            return self.usuario.nombre_completo
+        return None
+
+    @property
+    def usuario_correo(self) -> str | None:
+        if self.usuario:
+            return self.usuario.correo
+        return None
+
+    @property
+    def solicitud_folio(self) -> str | None:
+        if self.solicitud:
+            return self.solicitud.numero_respuesta
+        return None
+
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Auditoria {self.tipo_documento}:{self.id_documento} accion={self.accion!r}>"

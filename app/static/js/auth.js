@@ -173,9 +173,13 @@ async function initAuth() {
         // Si el backend no tiene configurado el client_id, checar localStorage
         entraConfig.clientId = serverClientId || "";
 
+        const isAzureProd = window.location.hostname.endsWith("azurewebsites.net");
         if (entraConfig.clientId) {
             await inicializarMSAL(entraConfig.clientId, entraConfig.authority);
-            
+            if (!isAzureProd) {
+                const devPanel = document.getElementById("dev-login-panel");
+                if (devPanel) devPanel.classList.remove("hidden");
+            }
         } else {
             // No hay Client ID todavía (desarrollo local)
             const devPanel = document.getElementById("dev-login-panel");

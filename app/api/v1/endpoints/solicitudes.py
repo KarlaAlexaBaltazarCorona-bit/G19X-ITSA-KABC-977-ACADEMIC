@@ -60,9 +60,9 @@ def list_solicitudes(
     summary="Crear una nueva solicitud de revisión y cargar el primer documento",
 )
 async def create_solicitud(
-    titulo: str,
-    tipo_documento: str,
     archivo: UploadFile,
+    titulo: str | None = None,
+    tipo_documento: str | None = None,
     descripcion: str | None = None,
     prioridad: PrioridadSolicitud = PrioridadSolicitud.NORMAL,
     fecha_limite: datetime.datetime | None = None,
@@ -77,6 +77,32 @@ async def create_solicitud(
     y si enviar_a_revision es True, dispara la asignación automática de
     revisor (HU-01, HU-03).
     """
+    if (not titulo or not tipo_documento) and request is not None:
+        try:
+            form = await request.form()
+            titulo = titulo or form.get("titulo")
+            tipo_documento = tipo_documento or form.get("tipo_documento")
+            descripcion = descripcion or form.get("descripcion")
+            if "prioridad" in form and form.get("prioridad"):
+                try:
+                    prioridad = PrioridadSolicitud(form.get("prioridad"))
+                except Exception:
+                    pass
+            if "enviar_a_revision" in form:
+                enviar_a_revision = str(form.get("enviar_a_revision")).lower() in ("true", "1", "yes")
+            if "fecha_limite" in form and form.get("fecha_limite"):
+                try:
+                    fecha_limite = datetime.datetime.fromisoformat(str(form.get("fecha_limite")))
+                except Exception:
+                    pass
+        except Exception as e_form:
+            logger.warning("No se pudo extraer form data: %s", e_form)
+
+    if not titulo:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "El título de la solicitud es obligatorio.")
+    if not tipo_documento:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "El tipo de documento es obligatorio.")
+
     contenido = await archivo.read()
     folio = WorkflowEngine.generar_folio_expediente(db)
 

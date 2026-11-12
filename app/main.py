@@ -1,7 +1,16 @@
 import logging
+import mimetypes
 import os
 from pathlib import Path
 import uuid
+
+# Asegurar registro estricto de tipos MIME en sistemas operativos con registro corrupto (p. ej. Windows)
+mimetypes.init()
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("image/svg+xml", ".svg")
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("font/woff", ".woff")
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Request
@@ -81,6 +90,7 @@ app.add_middleware(
         "http://localhost:8000",
         "http://127.0.0.1:8000",
     ],
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
@@ -119,6 +129,15 @@ async def add_security_headers_and_strip_fingerprints(request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
+
+    # Forzar MIME type correcto para evitar fallos de strict MIME checking en Windows
+    path = request.url.path.lower()
+    if path.endswith(".css"):
+        response.headers["content-type"] = "text/css; charset=utf-8"
+    elif path.endswith(".js"):
+        response.headers["content-type"] = "application/javascript; charset=utf-8"
+    elif path.endswith(".svg"):
+        response.headers["content-type"] = "image/svg+xml"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
