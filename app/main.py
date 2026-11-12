@@ -4,14 +4,6 @@ import os
 from pathlib import Path
 import uuid
 
-# Asegurar registro estricto de tipos MIME en sistemas operativos con registro corrupto (p. ej. Windows)
-mimetypes.init()
-mimetypes.add_type("text/css", ".css")
-mimetypes.add_type("application/javascript", ".js")
-mimetypes.add_type("image/svg+xml", ".svg")
-mimetypes.add_type("font/woff2", ".woff2")
-mimetypes.add_type("font/woff", ".woff")
-
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -25,6 +17,14 @@ from app.core.auth_guard import verify_api_key
 from app.core.config import settings
 from app.core.database import engine, init_db
 from app.core.rate_limiter import rate_limit_guard
+
+# Asegurar registro estricto de tipos MIME en sistemas operativos con registro corrupto (p. ej. Windows)
+mimetypes.init()
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("image/svg+xml", ".svg")
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("font/woff", ".woff")
 
 load_dotenv()
 
